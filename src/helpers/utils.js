@@ -134,6 +134,10 @@ export const debounce = (f, ms) => {
 }
 
 export const abbreviateNumber = (value, from = 1000) => {
+    const direction = value >= 0 ? 1 : -1
+
+    value = Math.abs(value)
+
     let newValue = value
 
     if (value >= from) {
@@ -157,6 +161,10 @@ export const abbreviateNumber = (value, from = 1000) => {
         if (shortValue % 1 != 0) shortValue = shortValue.toFixed(1)
 
         newValue = shortValue + suffixes[suffixNum]
+    }
+
+    if (direction === -1) {
+        return `-${newValue}`
     }
 
     return newValue
