@@ -1,9 +1,10 @@
 import {
     /*arrLimit, arrOffset,*/
     throttle,
-    debounce,
+    abbreviateNumber,
     animate,
     getClickPosition,
+    numberFormat,
 } from 'helpers/utils'
 
 import Canvas, { CanvasLine, CanvasText } from 'helpers/Canvas'
@@ -478,7 +479,7 @@ class Charts extends BaseComponent {
             const text = Math.floor(yLabelValueStep * index + minY)
 
             canvasObjects.push(
-                new CanvasText(text, {
+                new CanvasText(abbreviateNumber(text), {
                     x: 0 + asixX,
                     y: position.y - 10 + asixY + cHeight,
                     align: "start",
@@ -1107,7 +1108,7 @@ class Charts extends BaseComponent {
                         children: [
                             cre("div", {
                                 className: style.canvas__show_info__row__item__value,
-                                text: value.value,
+                                text: numberFormat(value.value),
                             }),
                             cre("div", {
                                 className: style.canvas__show_info__row__item__name,

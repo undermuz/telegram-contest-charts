@@ -132,3 +132,45 @@ export const debounce = (f, ms) => {
         timer = setTimeout(onComplete, ms);
     };
 }
+
+export const abbreviateNumber = (value, from = 1000) => {
+    let newValue = value
+
+    if (value >= from) {
+        const suffixes = ["", "k", "m", "b", "t"]
+        const suffixNum = Math.floor(("" + value).length / 3)
+
+        let shortValue = ''
+
+        for (var precision = 2; precision >= 1; precision =-1 ) {
+            shortValue = parseFloat(
+                (suffixNum != 0 ? (value / Math.pow(1000, suffixNum)) : value).toPrecision(precision)
+            )
+
+            var dotLessShortValue = (shortValue + '').replace(/[^a-zA-Z 0-9]+/g, '')
+
+            if (dotLessShortValue.length <= 2) {
+                break
+            }
+        }
+
+        if (shortValue % 1 != 0) shortValue = shortValue.toFixed(1)
+
+        newValue = shortValue + suffixes[suffixNum]
+    }
+
+    return newValue
+}
+
+const formatMoney = (n, c, d, t) => {
+    c = isNaN(c = Math.abs(c)) ? 2 : c
+    d = d == undefined ? "." : d
+    t = t == undefined ? "," : t
+
+    var s = n < 0 ? "-" : "",
+        i = String(parseInt(n = Math.abs(Number(n) || 0).toFixed(c))),
+        j = (j = i.length) > 3 ? j % 3 : 0;
+    return s + (j ? i.substr(0, j) + t : "") + i.substr(j).replace(/(\d{3})(?=\d)/g, "$1" + t) + (c ? d + Math.abs(n - i).toFixed(c).slice(2) : "");
+}
+
+export const numberFormat = value => `${formatMoney(parseFloat(value), 0, '.', ' ')}`.replace('.00', '')
