@@ -1,9 +1,0 @@
-@font-face{
-    font-family: 'NeueHaasDisplay';
-    src: url('./NeueHaasDisplay-Roman.eot');
-    src: url('./NeueHaasDisplay-Roman.eot?iefix') format('eot'),
-        url('./NeueHaasDisplay-Roman.woff') format('woff'),
-        url('./NeueHaasDisplay-Roman.ttf') format('truetype');
-    font-weight: normal;
-    font-style: normal;
-}
