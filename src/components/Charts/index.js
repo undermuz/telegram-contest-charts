@@ -1223,13 +1223,21 @@ class Charts extends BaseComponent {
         })
     }
 
+    // handleHideShowInfo = (e) => {
+    //     e.stopPropagation()
+
+    //     this.setState({
+    //         showInfo: false
+    //     })
+    // }
+
     render() {
         const { allowXAsix = false } = this.props
 
         this.canvasNode = cre("canvas")
         this.showInfoNode = cre("div", {
             className: style.canvas__show_info,
-            style: `opacity: 0;`,
+            style: `opacity: 0;`
         })
 
         const children = [this.canvasNode, this.showInfoNode]

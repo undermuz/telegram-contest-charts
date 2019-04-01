@@ -25,6 +25,10 @@ class App extends BaseComponent {
         return { limit, offset }
     }
 
+    static defaultProps = {
+        startIndex: 0
+    }
+
     state = {
         title: "",
         mode: MODE_COLOR_DAY,
@@ -44,6 +48,12 @@ class App extends BaseComponent {
     cartMiniMap = false
 
     /* LIFECIRCLE */
+
+    constructor(props) {
+        super(props)
+
+        this.state.index = props.startIndex
+    }
 
     componentDidMount() {
         this.prepareOwnElement()
@@ -395,7 +405,7 @@ class App extends BaseComponent {
 
             dataJson = await import("data.json")
             dataJson = dataJson.default
-            index = 0
+            // index = 0
         }
 
         const dataChart = new DataChart(dataJson[index])
