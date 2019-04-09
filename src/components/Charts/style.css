@@ -8,7 +8,7 @@
 .canvas__show_info
 {
     position: absolute;
-    top: 0px;
+    top: 10px;
     left: 0px;
 
     transition: left 0.1s;
@@ -19,7 +19,7 @@
 
 .canvas__show_info__wrapper
 {
-    padding: 8px 14px;
+    padding: 8px 8px;
     box-shadow: 0px 1px 8px rgba(0, 0, 0, 0.09);
     background-color: #fff;
     border: 1px solid rgba(227, 227, 227, 0.65);
@@ -56,40 +56,65 @@
     color: #fff;
 }
 
-.canvas__show_info__row
+.canvas__show_info__rows
 {
-    /* font-size: 20px; */
-    font-weight: bold;
     width: 100%;
-    display: flex;
-
-    font-size: 1em;
+    display: table;
 }
 
 .canvas__show_info__row__item
 {
+    display: table-row;
+    width: 100%;
+    font-size: 1em;
     /* margin-right: 40px; */
     margin-right: 2.5em;
+    align-items: center;
+    justify-content: center;
+    height: 1.5em;
 }
 
-.canvas__show_info__row__item:last-child {
-    margin-right: 0px;
-}
-
+.canvas__show_info__row__item__percent,
+.canvas__show_info__row__item__name,
 .canvas__show_info__row__item__value
 {
-    font-weight: bolder;
-    font-size: 24px;
-    letter-spacing: 0.2px;
-    margin-bottom: 6px;
-    font-size: 1.5em;
-    margin-bottom: 0.32em;
+    padding-bottom: 0.8em;
+}
+
+.canvas__show_info__row__item .canvas__show_info__row__item__percent
+{
+    padding-right: 0.8em;
+    display: table-cell;
+    display: none;
+    font-weight: bold;
+    text-align: right;
+    font-size: 1.3em;
+}
+
+.canvas__show_info__row__item.canvas__show_info__row__item_with_percent .canvas__show_info__row__item__percent
+{
+    display: block;
 }
 
 .canvas__show_info__row__item__name
 {
-    font-size: 14px;
+    min-width: 7em;
+    padding-right: 0.8em;
+    display: table-cell;
+    font-size: 1.2em;
+    /* font-size: 14px; */
     font-weight: 400;
+}
+
+.canvas__show_info__row__item__value
+{
+    display: table-cell;
+    font-weight: bolder;
+    letter-spacing: 0.2px;
+    margin-bottom: 6px;
+    font-size: 1em;
+    margin-bottom: 0.32em;
+    white-space: nowrap;
 }
 
 .canvas_wrapper__x_labels_wrapper

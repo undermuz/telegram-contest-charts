@@ -186,11 +186,17 @@ class LabelsX extends BaseComponent {
         }
 
         if (
-            this.props.width !== prevProps.width
+            this.props.labels !== prevProps.labels ||
+            this.props.width !== prevProps.width ||
+            this.props.scroll !== prevProps.scroll
         ) {
-            this.drawXLabels(true)
-        } else {
-            this.drawXLabels(false)
+            if (
+                this.props.width !== prevProps.width
+            ) {
+                this.drawXLabels(true)
+            } else {
+                this.drawXLabels(false)
+            }
         }
     }
 

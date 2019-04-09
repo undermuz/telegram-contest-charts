@@ -1,3 +1,4 @@
+import { hexToRgb } from './utils';
 class CanvasText {
     constructor(text, params = {}) {
         this.text = text
@@ -98,6 +99,29 @@ class Canvas {
             )
     }
 
+    arc(x, y, r, startAngle, endAngle, params) {
+        const { color = "black", mouseX = 0, mouseY = 0, mouseMove = false } = params
+
+        this.ctx.beginPath()
+
+        this.ctx.moveTo(x * this.dpr, y * this.dpr)
+        this.ctx.arc(x * this.dpr, y * this.dpr, r * this.dpr, startAngle, endAngle)
+
+        this.ctx.fillStyle = color
+
+        if (mouseMove) {
+            const isIntersect = this.ctx.isPointInPath(mouseX * this.dpr, mouseY * this.dpr)
+
+            if (isIntersect) {
+                mouseMove()
+            }
+        }
+
+        this.ctx.closePath()
+
+        this.ctx.fill()
+    }
+
     circle(x, y, r, { color = "black", strokColor = false, lineWidth = 1 }) {
         this.ctx.beginPath()
 
@@ -115,8 +139,16 @@ class Canvas {
         }
     }
 
-    beginPath({ color, lineWidth }) {
+    beginPath({ opacity = 1, color, lineWidth }) {
         this.ctx.beginPath()
+
+        if (opacity < 1) {
+            const rgb = hexToRgb(color)
+
+            if (rgb !== null) {
+                color = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`
+            }
+        }
 
         return {
             moveTo: (x, y) => {
@@ -130,6 +162,12 @@ class Canvas {
                 this.ctx.lineWidth = lineWidth * this.dpr
 
                 this.ctx.stroke()
+            },
+            fill: () => {
+                this.ctx.fillStyle = color
+                this.ctx.lineWidth = lineWidth * this.dpr
+
+                this.ctx.fill()
             },
         }
     }

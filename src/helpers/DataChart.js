@@ -23,6 +23,18 @@ class DataChart {
         return column.slice(1)
     }
 
+    getCharts() {
+        return this.data.columns
+            .filter(item => item[0] !== "x")
+            .map(item => ({
+                id: item[0],
+                type: this.data.types[item[0]],
+                label: this.data.names[item[0]],
+                color: this.data.colors[item[0]],
+                list: item.slice(1)
+            }))
+    }
+
     getLines() {
         const lineIds = Object.keys(this.data.types).filter(
             id => this.data.types[id] === "line",

@@ -1,10 +1,9 @@
 import {
-    /*arrLimit, arrOffset,*/
     throttle,
     abbreviateNumber,
-    animate,
     getClickPosition,
     numberFormat,
+    hexToRgb,
 } from 'helpers/utils'
 
 import Canvas, { CanvasLine, CanvasText } from 'helpers/Canvas'
@@ -18,6 +17,7 @@ import {
 
 import style from './style'
 import LabelsX from './LabelsX'
+import { getAnimProgress, animateEase } from '../../helpers/utils';
 
 class Charts extends BaseComponent {
     static defaultProps = {
@@ -27,12 +27,14 @@ class Charts extends BaseComponent {
         offset: 0,
         limit: 0,
         dataset: [],
+        visibled: [],
         width: 0,
         scroll: 0,
         layout: {
             width: 0,
             height: 0,
         },
+        yScaled: false,
     }
 
     static getXLabelText(unixTimestamp) {
@@ -55,7 +57,7 @@ class Charts extends BaseComponent {
     }) => {
         let step =
             limit > 0
-                ? +(width / (((length - 1) * limit) / 100)).toFixed(5)
+                ? width / (((length - 1) * limit) / 100)
                 : width / length
 
         step = Math.min(step, maxStep)
@@ -63,6 +65,8 @@ class Charts extends BaseComponent {
 
         return step
     }
+
+    animations = []
 
     constructor(props) {
         super(props)
@@ -85,10 +89,7 @@ class Charts extends BaseComponent {
             labelsXWidth: 70,
             labelsXOffset: 10,
         },
-        graphMinMax: {
-            minY: 0,
-            maxY: 0,
-        },
+        graphMinMax: {},
         offset: 0,
         graphOffset: {
             top: 0,
@@ -104,25 +105,28 @@ class Charts extends BaseComponent {
         },
         minStep: 1,
         maxStep: 1000,
+        visibility: {},
+        mouse: { pointX: 0, pointY: 0 },
+        selectArc: false,
     }
 
     init = false
 
     componentDidMount() {
-        this.documentEventMouseMove = this.eventMouseMove.bind(this)
+        // this.documentEventMouseMove = this.eventMouseMove.bind(this)
         this.documentEventMouseUp = this.eventMouseUp.bind(this)
 
-        document.addEventListener("mousemove", this.documentEventMouseMove)
+        // document.addEventListener("mousemove", this.documentEventMouseMove)
         document.addEventListener("mouseup", this.documentEventMouseUp)
-        document.addEventListener("touchmove", this.documentEventMouseMove)
+        // document.addEventListener("touchmove", this.documentEventMouseMove)
         // document.addEventListener("touchend", this.documentEventMouseUp)
 
         this.initialize()
     }
 
     componentDidUpdate(prevProps, prevState) {
-        const { dataset, layout } = this.props
-        const { step, graphOffset, graphMinMax } = this.state
+        const { dataset, visibled, layout, labels } = this.props
+        const { step, graphOffset, graphMinMax, visibility, graphScale, showInfo, mouse, selectArc } = this.state
 
         const {
             layout: { width = 0, height = 0 },
@@ -140,6 +144,7 @@ class Charts extends BaseComponent {
         }
 
         if (
+            prevProps.visibled !== visibled ||
             prevProps.dataset !== dataset ||
             prevProps.layout.width !== layout.width ||
             prevProps.layout.height !== layout.height ||
@@ -153,8 +158,14 @@ class Charts extends BaseComponent {
                 this.canvas.resize(width, height)
             }
 
+            if (prevProps.visibled !== visibled) {
+                this.handleApplyVisibility(visibled)
+            }
+
             this.reInit()
-        } else if (
+        }
+
+        if (
             prevState.step !== step ||
             prevState.graphOffset.top !== graphOffset.top ||
             prevState.graphOffset.bottom !== graphOffset.bottom ||
@@ -163,19 +174,25 @@ class Charts extends BaseComponent {
             prevProps.scroll !== scroll ||
             prevProps.width !== width ||
             prevProps.colors !== colors ||
-            prevState.graphMinMax.minY !== graphMinMax.minY ||
-            prevState.graphMinMax.maxY !== graphMinMax.maxY
+            prevProps.labels !== labels ||
+            prevState.graphMinMax !== graphMinMax ||
+            prevState.graphScale !== graphScale ||
+            prevState.showInfo !== showInfo ||
+            prevState.visibility !== visibility ||
+            prevState.mouse !== mouse ||
+            prevState.selectArc !== selectArc
         ) {
-            this.draw()
+            // this.draw()
+
+            this.needDraw = true
         }
     }
 
     componentWillUnmount() {
-        document.removeEventListener("mousemove", this.documentEventMouseMove)
+        // document.removeEventListener("mousemove", this.documentEventMouseMove)
         document.removeEventListener("mouseup", this.documentEventMouseUp)
-        document.removeEventListener("touchmove", this.documentEventMouseMove)
-        document.removeEventListener("touchend", this.documentEventMouseUp)
-
+        // document.removeEventListener("touchmove", this.documentEventMouseMove)
+        // document.removeEventListener("touchend", this.documentEventMouseUp)
 
         if (this.cart) {
             this.cart.destroy()
@@ -189,7 +206,9 @@ class Charts extends BaseComponent {
     }
 
     initialize = async () => {
-        const { layout } = this.props
+        const { layout, visibled } = this.props
+
+        this.handleApplyVisibility(visibled)
 
         this.canvas = new Canvas(this.canvasNode, {
             ...layout,
@@ -198,6 +217,37 @@ class Charts extends BaseComponent {
         await this.calc()
 
         this.init = true
+
+        requestAnimationFrame(this.reDraw)
+    }
+
+    reDraw = () => {
+        this.animations = this.animations
+            .filter(item => item !== false)
+
+        if (this.animations.length > 0 || this.needDraw) {
+            for (let index = 0; index < this.animations.length; index++) {
+                const anmation = this.animations[index]
+    
+                if (anmation !== false) {
+                    const progress = getAnimProgress(anmation.startAt, anmation.duration)
+        
+                    anmation.step(animateEase(progress))
+        
+                    if (progress === 1) {
+                        this.animations[index] = false
+                    }
+                }
+            }
+
+            this.draw()
+
+            if (this.needDraw) {
+                this.needDraw = false
+            }
+        }
+
+        requestAnimationFrame(this.reDraw)
     }
 
     reInit = async () => {
@@ -216,56 +266,115 @@ class Charts extends BaseComponent {
             this.setState(params, ok)
         })
 
-    findMinMax() {
-        const { dataset = [], offset, limit } = this.props
+    findMinMaxForLine(list, params = {}, def = {}) {
+        let { min = 99999999999, max = 0 } = def
 
-        // const firstList = arrLimit(arrOffset(dataset[0].list, offset), limit)
+        const { offset, limit } = params
+
+        let maxIter = offset + limit
+
+        if (maxIter === 0) maxIter = list.length
+
+        for (let i = offset; i < list.length && i < maxIter; i += 1) {
+            const v = list[i]
+
+            min = v < min ? v : min
+            max = v > max ? v : max
+        }
+
+        return [min, max]
+    }
+
+    findMinMaxForBars(dataset, params, def = {}) {
+        let { min = 99999999999, max = 0 } = def
+
+        const { visibled = [], offset, limit } = params
+
+        let maxIter = offset + limit
+
+        if (maxIter === 0) maxIter = dataset[0].list.length
+
+        for (let index = offset; index < dataset[0].list.length && index < maxIter; index += 1) {
+            let v = 0
+            
+            dataset
+                .filter(item => visibled.includes(item.id))
+                .forEach(item => {
+                    v += item.list[index]
+
+                    min = item.list[index] < min ? item.list[index] : min
+                })
+
+            // min = v < min ? v : min
+            max = v > max ? v : max
+        }
+
+        return [min, max]
+    }
+
+    findMinMax() {
+        const { dataset = [], visibled = [], offset, limit } = this.props
 
         let min = 99999999
         let max = 0
 
+        const items = {}
+
         if (dataset.length > 0) {
-            for (let index = 0; index < dataset.length; index += 1) {
-                const { list } = dataset[index]
-                // index === 0 ?
-                //   firstList :
-                //   arrLimit(arrOffset(dataset[index].list, offset), limit)
+            dataset
+                .filter(item => item.type === "line")
+                .forEach(item => {
+                    const { id, list } = item
+                    
+                    const minMax = this.findMinMaxForLine(list, { offset, limit })
+    
+                    items[id] = minMax
+    
+                    if (visibled.includes(id)) {
+                        min = minMax[0] < min ? minMax[0] : min
+                        max = minMax[1] > max ? minMax[1] : max
+                    }
+                })
 
-                let maxIter = offset + limit
+            const bars = dataset
+                .filter(item => item.type === "bar" || item.type === "area")
 
-                if (maxIter === 0) maxIter = list.length
+            if (bars.length > 0) {
+                const minMax = this.findMinMaxForBars(bars, { visibled, offset, limit })
 
-                for (let i = offset; i < list.length && i < maxIter; i += 1) {
-                    const v = list[i]
-
-                    min = v < min ? v : min
-                    max = v > max ? v : max
-                }
+                min = minMax[0] < min ? minMax[0] : min
+                max = minMax[1] > max ? minMax[1] : max
             }
         } else {
             min = 0
             max = 10
         }
 
-        return [min, max]
+        return {
+            common: [min, max],
+            ...items
+        }
     }
 
-    nAsix(x, y) {
+    nAsix(x, y, yType = "common") {
         const {
             layout: { height = 0 },
         } = this.props
 
         const {
-            graphMinMax: { minY },
+            graphMinMax,
             graphScale,
             graphOffset: { left, bottom },
         } = this.state
 
-        const zY = y - minY
+        const [min] = graphMinMax[yType]
+        const scale = graphScale[yType]
 
-        const nY = +(height - zY * graphScale.y - bottom).toFixed(2)
+        const zY = y - min
 
-        const nX = +(left + x * graphScale.x).toFixed(2)
+        const nY = height - zY * scale - bottom
+
+        const nX = left + x * graphScale.x
 
         return {
             x: nX,
@@ -282,18 +391,41 @@ class Charts extends BaseComponent {
         })
     }, 10)
 
-    updateGraphOptions(minY, maxY, options, layout) {
-        const { limit = 0, length, animateYLines = 0 } = options
-        const { width, height, left, top, right, bottom, asixX, asixY } = layout
+    getHeightGraph() {
+        const { layout } = this.props
 
-        const realHeightGraph = maxY - minY
-        const heightGraph = height - top - bottom
-        const widthGraph = width - left - right
+        const { graphOffset: { top, bottom } } = this.state
 
-        const scaleY =
-            realHeightGraph > 0 ? +(heightGraph / realHeightGraph).toFixed(5) : 1
+        return layout.height - top - bottom
+    }
 
-        const scaleX = +(widthGraph / width).toFixed(5)
+    getWidthGraph() {
+        const { layout } = this.props
+
+        const { graphOffset: { left, right } } = this.state
+
+        return layout.width - left - right
+    }
+
+    setGraphOptions(minMax, options, layout) {
+        const { scroll = 0, limit = 0, length, animateYLines = 0 } = options
+        const { width } = layout
+
+        const heightGraph = this.getHeightGraph()
+        const widthGraph = this.getWidthGraph()
+        
+        const scales = {}
+
+        Object.keys(minMax).forEach(minmax_id => {
+            const [min, max] = minMax[minmax_id]
+
+            const delta = max - min
+            const scale = delta > 0 ? heightGraph / delta : 1
+
+            scales[minmax_id] = scale
+        })
+
+        const scaleX = widthGraph / width
 
         const step = Charts.calcXStep({
             width,
@@ -301,33 +433,36 @@ class Charts extends BaseComponent {
             length,
         })
 
+        const fullWidth = step * length
+
         this.setState({
             step,
-            graphOffset: {
-                left,
-                right,
-                top,
-                bottom,
-                asixX,
-                asixY,
-            },
-            graphMinMax: {
-                minY,
-                maxY,
-            },
+            graphMinMax: minMax,
             graphScale: {
+                ...scales,
                 x: scaleX,
-                y: scaleY,
                 animateYLines,
             },
             graphLayout: {
                 ...this.state.graphLayout,
                 width: widthGraph,
                 height: heightGraph,
+                fullWidth,
+                offsetPx: (fullWidth * (scroll - limit)) / 100
             },
         })
+    }
 
-        // this.updateAnimateYLines(animateYLines)
+    updateGraphOptions = (minMax, animateYLines = 0) => {
+        const { scroll, width, layout } = this.props
+
+        const length = this.getLength()
+
+        this.setGraphOptions(
+            minMax,
+            { scroll, limit: width, length, animateYLines },
+            layout,
+        )
     }
 
     animationInterval = false
@@ -338,152 +473,466 @@ class Charts extends BaseComponent {
         return Math.max(...dataset.map(item => item.list.length))
     }
 
+    lastMinMax = [0, 0]
+
     calc() {
-        const { width, layout } = this.props
+        const { dataset = [], visibled = [], yScaled = false } = this.props
 
-        const {
-            graphMinMax,
-            graphOffset: { left, top, right, bottom, asixX, asixY },
-        } = this.state
+        const minMax = this.findMinMax()
 
-        const length = this.getLength()
-
-        const [minY, maxY] = this.findMinMax()
-
-        const animationTimeout = 200
-
-        const updateGraphOptions = (newMinY, newMaxY, animateYLines = 0) => {
-            this.updateGraphOptions(
-                newMinY,
-                newMaxY,
-                { limit: width, length, animateYLines },
-                { ...layout, left, top, right, bottom, asixX, asixY },
-            )
-        }
-
-        if (graphMinMax.minY !== minY || graphMinMax.maxY !== maxY) {
-            const minYRange = minY - graphMinMax.minY
-            const maxYRange = maxY - graphMinMax.maxY
-
-            // let animateYLinesDir = maxY - minY > graphMinMax.maxY - graphMinMax.minY ? 1 : -1
-            // let animHeight = maxY - minY
-
-            let animateYLinesDir = graphMinMax.maxY > maxY ? 1 : -1
-            let animHeight = Math.abs(maxYRange)
-
-            if (graphMinMax.maxY == maxY) {
-                animateYLinesDir = graphMinMax.minY < minY ? 1 : -1
-                animHeight = Math.abs(minYRange)
-            }
-
-            if (Math.abs(animHeight) > layout.height / 2) {
-                const direction = animHeight >= 0 ? 1 : -1
-
-                animHeight = (layout.height / 2) * direction
-            }
-
-            const animationStep = progress => {
-                const rangeMinProgress = (minYRange * progress) / 100
-                const rangeMaxXProgress = (maxYRange * progress) / 100
-
-                const newMinY = +(rangeMinProgress + graphMinMax.minY).toFixed(2)
-
-                const newMaxY = +(rangeMaxXProgress + graphMinMax.maxY).toFixed(2)
-
-                const animateYLines = progress > 0 ? progress * animateYLinesDir : animateYLinesDir
-
-                // const animHeight = 50
-                const direction = animateYLines >= 0 ? 1 : -1
-                const reverseProgress = (100 - Math.abs(animateYLines))
-
-                const cHeight = animateYLines !== 0 && reverseProgress !== 0 ?
-                    ((animHeight * reverseProgress) / 100) * direction :
-                    0
-
-                updateGraphOptions(newMinY, newMaxY, cHeight)
-            }
-
-            if (this.animationInterval) {
-                // this.animationInterval.stop()
-                this.animationInterval = false
-            }
-
-            this.animationInterval = animate(animationStep, animationTimeout, () => {
-                this.animationInterval = false
-            })
+        if (!yScaled) {
+            this.handleScale("common", minMax)
         } else {
-            updateGraphOptions(minY, maxY)
+            dataset
+                .filter(item => visibled.includes(item.id))
+                .forEach(item => {
+                    this.handleScale(item.id, minMax)
+                })
         }
+
+        // this.updateGraphOptions(minMax)
 
         return true
     }
 
-    drawGraph(list, { color = "black", lineWidth = 3, step, drawPointValue }) {
-        const { scroll = 0, width = 0 } = this.props
+    drawLine(list, params) {
+        const width = this.getWidthGraph()
 
-        const graphWidth = step * list.length
-        const offsetPx = +((graphWidth * (scroll - width)) / 100).toFixed(2)
+        const { yScaled = false } = this.props
+
+        const { graphLayout: { offsetPx } } = this.state
+
+        // console.log({ offsetPx })
 
         const path = this.canvas.beginPath({
-            color,
-            lineWidth,
+            color: params.color,
+            opacity: params.opacity,
+            lineWidth: params.lineWidth,
         })
 
-        list.forEach((item, index) => {
-            const { x, y } = this.nAsix(index * step - offsetPx, item)
+        for (let index = 0; index < list.length; index++) {
+            const item = list[index]
 
-            if (index === 0) {
-                path.moveTo(x, y)
-            } else {
-                path.lineTo(x, y)
+            const yType = yScaled ? params.id : "common"
+            
+            const { x, y } = this.nAsix(index * params.step - offsetPx, item, yType)
+    
+            if (x >= 0 - (params.step * 2) && x <= width + (params.step * 2)) {
+                // console.log(`Draw ${index}`)
+                if (index === 0) {
+                    path.moveTo(x, y)
+                } else {
+                    path.lineTo(x, y)
+                }
+    
+                // y x labels
+                if (params.drawPointValue)
+                {
+                    this.canvas.text(item.value, {
+                        x,
+                        y,
+                        align: "center",
+                        font: "NeueHaasDisplay,Tahoma,sans-serif,Arial",
+                    })
+                }
             }
-
-            // y x labels
-            if (drawPointValue)
-                this.canvas.text(item.value, {
-                    x,
-                    y,
-                    align: "center",
-                    font: "NeueHaasDisplay,Tahoma,sans-serif,Arial",
-                })
-        })
+        }
 
         path.stroke()
     }
 
-    createYLabels() {
+    drawLines(dataset, step, params = {}) {
         const {
-            layout: { width, height },
+            visibility = {},
+            lineWidth = 3,
+            allowPointValue = false,
+        } = params
+
+        for (let index = 0; index < dataset.length; index++) {
+            const data = dataset[index]
+
+            this.drawLine(data.list, {
+                id: data.id,
+                opacity: visibility[data.id],
+                color: data.color,
+                step,
+                lineWidth,
+                drawPointValue: allowPointValue,
+            })
+        }
+    }
+
+    drawBars(dataset, step, params = {}) {
+        const height = this.getHeightGraph()
+        const width = this.getWidthGraph()
+
+        const {
+            graphMinMax: { common: [,max] },
+            graphLayout: { offsetPx },
+            showInfo = false,
+        } = this.state
+
+        const {
+            visibility = {},
+            length = 0,
+        } = params
+
+        dataset = dataset
+            .filter(item => visibility[item.id] > 0)
+
+        for (let index = 0; index < length; index++) {
+            const { x } = this.nAsix(index * step - offsetPx, 0)
+
+            if (x >= 0 - (step * 2) && x <= width + (step * 2)) {
+                let sum = 0
+                
+                dataset.forEach(item => {
+                    const v = item.list[index]
+
+                    let opacity = visibility[item.id]
+    
+                    sum += v * opacity
+                })
+
+                let additionalOffset = 2
+
+                dataset.forEach(item => {
+                    let opacity = visibility[item.id]
+
+                    const v = item.list[index] * opacity
+    
+                    let percent = v * 100 / sum
+
+                    if (percent < 2) {
+                        additionalOffset += 2
+                    }
+                })
+    
+                const offsetTopPercent = 100 - (sum * 100 / max) - additionalOffset
+                const offsetTopPx = height * offsetTopPercent / 100
+    
+                const iterHeight = height - offsetTopPx
+                let yOffset = 0
+    
+                dataset.forEach(item => {
+                    let opacity = visibility[item.id]
+
+                    const v = item.list[index] * opacity
+    
+                    let percent = v * 100 / sum
+
+                    if (percent < 2) percent = 2
+    
+                    const barHeight = iterHeight * percent / 100
+
+                    if (showInfo !== false) {
+                        if (showInfo === index) {
+                            opacity = 1
+                        } else {
+                            opacity = 0.4
+                        }                        
+                    }
+
+
+                    let { color } = item
+
+                    if (opacity === 1) {
+                        opacity = 0.8
+                    }
+
+                    if (opacity < 1) {
+                        const rgb = hexToRgb(color)
+
+                        color = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
+                    }
+                    
+                    this.canvas.rect(x, height - (barHeight + yOffset), {
+                        width: step,
+                        height: barHeight,
+                        color,
+                        fill: true,
+                    })
+
+                    yOffset += barHeight
+                })
+            }
+        }
+    }
+
+    drawAreas(dataset, step, params = {}) {
+        const height = this.getHeightGraph()
+        const width = this.getWidthGraph()
+
+        const {
+            graphLayout: { offsetPx },
+        } = this.state
+
+        const {
+            visibility = {},
+            length = 0,
+        } = params
+
+        dataset = dataset
+            .filter(item => visibility[item.id] > 0)
+
+        const paths = {}
+
+        for (let index = 0; index < length; index++) {
+            const { x } = this.nAsix(index * step - offsetPx, 0)
+
+            if (x >= 0 - (step * 2) && x <= width + (step * 2)) {
+                let sum = 0
+
+                dataset.forEach(item => {
+                    const v = item.list[index]
+
+                    let opacity = visibility[item.id]
+
+                    sum += v * opacity
+                })
+
+                let yOffset = 0
+
+                dataset.forEach(item => {
+                    let opacity = visibility[item.id]
+
+                    const v = item.list[index] * opacity
+
+                    const percent = v * 100 / sum
+
+                    const barHeight = height * percent / 100
+
+                    if (!paths[item.id]) paths[item.id] = []
+
+                    paths[item.id].push({
+                        x,
+                        y: height - (barHeight + yOffset),
+                    })
+
+                    yOffset += barHeight
+                })
+            }
+        }
+
+        for (let index = dataset.length - 1; index >= 0; index -= 1) {
+            const item = dataset[index]
+
+            let opacity = visibility[item.id]
+
+            let { color } = item
+
+            // if (opacity === 1) {
+            //     opacity = 0.8
+            // }
+
+            if (opacity < 1) {
+                const rgb = hexToRgb(color)
+
+                color = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
+            }
+            
+            const path = this.canvas.beginPath({
+                color,
+                opacity,
+                lineWidth: params.lineWidth,
+            })
+
+            path.moveTo(0, height)
+    
+            for (let index = 0; index < paths[item.id].length; index++) {
+                const { x, y } = paths[item.id][index]
+                
+                path.lineTo(x, y)
+            }
+
+            path.lineTo(width, height)
+    
+            path.fill()
+        }
+    }
+
+    drawArc(dataset, step, params = {}) {
+        const height = this.getHeightGraph()
+        const width = this.getWidthGraph()
+
+        const {
+            graphLayout: { offsetPx },
+            mouse: { pointX = 0, pointY = 0 },
+            selectArc = false
+        } = this.state
+
+        const {
+            visibility = {},
+            length = 0,
+        } = params
+
+        dataset = dataset
+            .filter(item => visibility[item.id] > 0)
+            
+        let sum = 0
+        let data = {}
+
+        for (let index = 0; index < length; index++) {
+            const { x } = this.nAsix(index * step - offsetPx, 0)
+
+            if (x >= 0 - (step * 2) && x <= width + (step * 2)) {
+
+                dataset.forEach(item => {
+                    let opacity = visibility[item.id]
+                    
+                    const v = item.list[index] * opacity
+
+                    if (!data[item.id]) data[item.id] = 0
+
+                    data[item.id] += v
+
+                    sum += v
+                })
+            }
+        }
+
+        let start_angle = 0
+        const radiusArc = Math.round(Math.min(width / 2.3, height / 2.3))
+        const radiusText = Math.round(radiusArc / 1.5)
+        const centerX = Math.round(width / 2)
+        const centerY = Math.round(height / 2)
+
+        let hoverId = false
+
+        dataset.forEach(item => {
+            const v = data[item.id]
+
+            let slice_angle = 2 * Math.PI * v / sum
+
+            let cX = selectArc === item.id ? centerX + 10 * Math.cos(start_angle + (slice_angle / 2)) : centerX
+            let cY = selectArc === item.id ? centerY + 10 * Math.sin(start_angle + (slice_angle / 2)) : centerY
+
+            this.canvas.arc(
+                cX,
+                cY,
+                radiusArc,
+                start_angle,
+                start_angle + slice_angle,
+                {
+                    color: item.color,
+                    mouseX: pointX,
+                    mouseY: pointY,
+                    mouseMove: () => {
+                        hoverId = item.id
+                    }
+                }
+            )
+
+            start_angle += slice_angle
+        })
+
+        if (hoverId !== false && selectArc !== hoverId) {
+            setTimeout(() => {
+                this.setState({
+                    selectArc: hoverId
+                })
+            }, 1)
+        } else if (hoverId === false && selectArc !== hoverId) {            
+            setTimeout(() => {
+                this.setState({
+                    selectArc: false
+                })
+            }, 1)
+        }
+
+        start_angle = 0
+
+        dataset.forEach(item => {
+            const v = data[item.id]
+            const precent = v / sum * 100
+
+            let slice_angle = 2 * Math.PI * v / sum
+
+            let rText = radiusText
+            let size = 20
+
+            if (slice_angle * (180 / Math.PI) < 30)
+            {
+                size = 12
+                rText = radiusArc - 20
+                slice_angle += 0.03
+            }
+
+            if (slice_angle * (180 / Math.PI) > 8) {
+                const textX = rText * Math.cos(start_angle + (slice_angle / 2)) + centerX
+                const textY = rText * Math.sin(start_angle + (slice_angle / 2)) + centerY
+    
+                this.canvas.text(`${Math.round(precent)}%`, {
+                    x: textX,
+                    y: textY,
+                    size,
+                    align: "center",
+                    color: "#fff",
+                    font: "NeueHaasDisplay,Tahoma,sans-serif,Arial",
+                })
+            }
+
+
+            start_angle += slice_angle
+        })
+    }
+
+    drawGraphs(dataset, step, params = {}) {
+        const { arcMode = false } = this.props
+
+        const arcs = dataset.filter(item => item.type === "arc")
+        const areas = dataset.filter(item => item.type === "area")
+        const bars = dataset.filter(item => item.type === "bar")
+        const lines = dataset.filter(item => item.type === "line")
+
+        if (arcs.length > 0) this.drawArc(arcs, step, params)
+
+        if (arcMode) {
+            this.drawArc(areas, step, params)
+        } else {
+            this.drawAreas(areas, step, params)
+        }
+
+        this.drawBars(bars, step, params)
+        this.drawLines(lines, step, params)
+    }
+
+    createYLabels(type, graphMinMax, cHeight, color, pos = "start") {
+        const {
             colors,
+            layout: { width, height },
         } = this.props
 
         const {
-            graphMinMax: { minY, maxY },
             graphOffset: { asixX = 0, asixY = 0 },
-            graphScale: { animateYLines },
         } = this.state
 
-        const cHeight = animateYLines
-
-        // y labels
-        const yHeight = maxY - minY
-        const yLabelStep = 6
-        const yLabelHeightStep =
-            yHeight > 0 ? yHeight / yLabelStep : height / yLabelStep
-        const yLabelValueStep = maxY / yLabelStep
+        const [min, max] = graphMinMax[type]
 
         const canvasObjects = []
 
+        // y labels
+        const deltaY = max - min
+
+        const yLabelStep = 6
+
+        const yLabelHeightStep = deltaY > 0 ?
+            deltaY / yLabelStep :
+            height / yLabelStep
+
+        const yLabelValueStep = deltaY / yLabelStep
+
         for (let index = -25; index < 25; index += 1) {
-            const position = this.nAsix(0, yLabelHeightStep * index + minY)
-            const text = Math.floor(yLabelValueStep * index + minY)
+            const position = this.nAsix(0, yLabelHeightStep * index + min, type)
+
+            const text = Math.floor(yLabelValueStep * index + min)
 
             canvasObjects.push(
                 new CanvasText(abbreviateNumber(text), {
-                    x: 0 + asixX,
+                    x: pos === "start" ? 0 + asixX : width,
                     y: position.y - 10 + asixY + cHeight,
-                    align: "start",
-                    color: colors.text,
+                    align: pos,
+                    color,
                     font: "NeueHaasDisplay,Tahoma,sans-serif,Arial",
                     size: 14,
                 }),
@@ -510,340 +959,40 @@ class Charts extends BaseComponent {
         return canvasObjects
     }
 
-    /*
-        domLabelsRender = false
+    getYLabels() {
+        const {
+            yScaled = false,
+            dataset = [],
+            visibled = [],
+            colors,
+        } = this.props
 
-        domLabels = {}
+        const {
+            graphMinMax,
+            graphScale: { animateYLines },
+        } = this.state
 
-        drawXLabelsOld() {
-            const {
-                layout: { width, height = 0 },
-                offset,
-                limit,
-                labels = [],
-            } = this.props
+        if (!yScaled) {
+            return this.createYLabels("common", graphMinMax, animateYLines, colors.text, "start")
+        } else {
+            let canvasObjects = []
 
-            const {
-                graphLayout: { labelsXWidth = 0, labelsXOffset = 0 },
-                graphOffset: { bottom = 0 },
-            } = this.state
-
-            let cellWidth = labelsXWidth + labelsXOffset
-            let countLabels = Math.floor(width / cellWidth)
-
-            const limitedLabels = arrLimit(arrOffset(labels, offset), limit)
-
-            if (countLabels > limit) {
-                countLabels = limit
-                cellWidth = width / limit
-            }
-
-            if (countLabels * cellWidth < width) {
-                cellWidth = width / countLabels
-            }
-
-            const stepLabel = countLabels < limit ? Math.ceil(limit / countLabels) : 1
-
-            let indexLabel = 0
-
-            const labelOffset = (cellWidth - labelsXWidth) / countLabels
-
-            for (let i = 0; i < countLabels; i += 1) {
-                let index = indexLabel
-
-                if (indexLabel >= limit) {
-                    index = limit - 1
-                }
-
-                const unixTimestamp = limitedLabels[index]
-
-                const date = new Date(unixTimestamp)
-
-                const month = MAP_MONTHS[date.getMonth()]
-                const day = date.getDate()
-
-                const dateFormat = `${month} ${day}`
-
-                // const cellX = i * cellWidth
-                const x = i * cellWidth + labelOffset * (i + 1)
-                const y = height - bottom + 30
-
-                this.canvas.text(dateFormat, {
-                    x: x + 10,
-                    y,
-                    align: "start",
-                    color: "#96A2AA",
-                    size: 14,
-                    font: "NeueHaasDisplay,Tahoma,sans-serif,Arial",
+            dataset
+                .filter(item => visibled.includes(item.id))
+                .forEach((item, index) => {
+                    canvasObjects = [
+                        ...canvasObjects,
+                        ...this.createYLabels(item.id, graphMinMax, animateYLines, item.color, index === 0 ? "start" : "end"),
+                    ]
                 })
 
-                indexLabel += stepLabel
-            }
+            return canvasObjects
         }
-
-        static getVisibleLabels = (labels, step, width = 0, offset = 0) => {
-            const cellWidth = width + offset
-
-            let lastVisibleX = cellWidth * -1
-
-            const visibleLables = []
-
-            const maxWidth = (labels.length - 1) * step
-
-            for (let index = 0; index < labels.length; index += 1) {
-                let visible = index * step > lastVisibleX + cellWidth
-
-                // if (maxWidth < index * step + cellWidth) {
-                //   visible = false
-                // }
-
-                if (visible) {
-                    lastVisibleX = index * step
-
-                    visibleLables.push(index)
-                }
-            }
-
-            console.log({
-                length: labels.length,
-                maxWidth,
-                step,
-                width: cellWidth,
-                lastIndex: visibleLables[visibleLables.length - 1],
-                lastX: lastVisibleX,
-            })
-
-            return visibleLables
-        }
-
-        drawXLabelsOld2 = () => {
-            const { scroll, labels = [] } = this.props
-
-            const {
-                graphLayout: { labelsXWidth = 0, labelsXOffset = 0 },
-                step,
-            } = this.state
-
-            // const minStep = Charts.calcXStep({
-            //   width: this.props.layout.width,
-            //   limit: 10,
-            //   length: labels.length,
-            // })
-
-            // const minVisibleLablesIndexes = Charts.getVisibleLabels(
-            //   labels,
-            //   minStep,
-            //   labelsXWidth,
-            //   labelsXOffset,
-            // )
-
-            // const minVisibleLables = labels.filter((item, index) =>
-            //   minVisibleLablesIndexes.includes(index),
-            // )
-
-            const width = labels.length * step
-
-            const offsetScroll = (width / 100) * (scroll - this.props.width)
-
-            const cellWidth = labelsXWidth + labelsXOffset
-
-            // const labelOffset = (cellWidth - labelsXWidth) / countLabels
-
-            const visibleLablesIndexes = Charts.getVisibleLabels(
-                labels,
-                step,
-                labelsXWidth,
-                labelsXOffset,
-            )
-
-            if (!this.domLabelsRender) {
-                this.domLabelsRender = true
-
-                for (let index = 0; index < labels.length; index += 1) {
-                    const visible = visibleLablesIndexes.includes(index)
-
-                    const text = Charts.getXLabelText(labels[index])
-
-                    const x = index * step - offsetScroll
-
-                    const labelStyle =
-                        `left: ${x.toFixed(2)}px;` +
-                        `width: ${cellWidth}px;` +
-                        `opacity: ${visible ? 1 : 0}`
-
-                    this.domLabels[index] = cre("div", {
-                        id: index,
-                        className: style.canvas_wrapper__x_labels_wrapper__item,
-                        text,
-                        style: labelStyle,
-                        data: {
-                            state: "rendered",
-                        },
-                    })
-
-                    const domLabel = this.domLabels[index]
-
-                    requestAnimationFrame(() => {
-                        this.xLabelsWrapper.appendChild(domLabel)
-                    })
-                }
-            } else {
-                for (let index = 0; index < labels.length; index += 1) {
-                    const visible = visibleLablesIndexes.includes(index)
-                    const domLabel = this.domLabels[index]
-
-                    const x = +(index * step - offsetScroll).toFixed(2)
-
-                    const labelStyle =
-                        `left: ${x.toFixed(2)}px;` +
-                        `width: ${cellWidth}px;` +
-                        `opacity: ${visible ? 1 : 0}`
-
-                    requestAnimationFrame(() => {
-                        domLabel.setAttribute("style", labelStyle)
-                    })
-                }
-            }
-            // console.log(`[Charts][Handle: drawXLabels][domLabels]`, visibleLablesIndexes)
-        }
-
-        drawXLabelsOld3 = () => {
-            const {
-                scroll,
-                labels = [],
-                layout: { height = 0 },
-            } = this.props
-
-            const {
-                graphLayout: { labelsXWidth = 0, labelsXOffset = 0 },
-                graphOffset,
-                step,
-            } = this.state
-
-            const width = labels.length * step
-
-            const offsetScroll = (width / 100) * (scroll - this.props.width)
-
-            const cellWidth = labelsXWidth + labelsXOffset
-
-            // const labelOffset = (cellWidth - labelsXWidth) / countLabels
-
-            let lastVisibleCell = (cellWidth + labelsXOffset) * -1
-
-            for (let index = 0; index < labels.length; index += 1) {
-                let visible = true
-
-                const text = Charts.getXLabelText(labels[index])
-
-                const x = index * step - offsetScroll
-
-                const prevCell = lastVisibleCell
-
-                const currentCell = index * step
-
-                const nextCell = (index + 1) * step
-
-                if (
-                    prevCell + cellWidth > currentCell &&
-                    nextCell < currentCell + cellWidth
-                ) {
-                    visible = false
-                }
-
-                if (visible) {
-                    lastVisibleCell = index * step
-
-                    this.canvas.text(text, {
-                        x,
-                        y: height - graphOffset.bottom + 25,
-                        align: "start",
-                        color: "#96A2AA",
-                        size: 14,
-                        font: "NeueHaasDisplay,Tahoma,sans-serif,Arial",
-                    })
-                }
-            }
-            // console.log(`[Charts][Handle: drawXLabels][domLabels]`, visibleLablesIndexes)
-        }
-
-        drawXLabels = () => {
-            const {
-                labels = [],
-                layout: { height = 0 },
-            } = this.props
-
-            const { positions } = this.calcXLabels()
-
-            const { graphOffset } = this.state
-
-            const indexes = Object.keys(positions)
-
-            for (let i = 0; i < indexes.length; i += 1) {
-                const index = indexes[i]
-                const x = positions[index]
-                const text = Charts.getXLabelText(labels[index])
-
-                this.canvas.text(text, {
-                    x,
-                    y: height - graphOffset.bottom + 25,
-                    align: "start",
-                    color: "#96A2AA",
-                    size: 14,
-                    font: "NeueHaasDisplay,Tahoma,sans-serif,Arial",
-                })
-            }
-            // console.log(`[Charts][Handle: drawXLabels][domLabels]`, visibleLablesIndexes)
-        }
-
-        calcXLabels() {
-            const { scroll, labels = [], layout } = this.props
-
-            const {
-                graphLayout: { labelsXWidth = 0 },
-            } = this.state
-
-            const scaleFactor = 100 / this.props.width
-
-            const labelsOnPage = Math.ceil(layout.width / labelsXWidth)
-
-            const cellWidth = layout.width / labelsOnPage
-
-            const intervalCount = Math.floor(labels.length / labelsOnPage)
-            const intervalFactorLog = Math.ceil(Math.log2(intervalCount / scaleFactor))
-            const intervalFactor = Math.pow(2, intervalFactorLog)
-
-            const labelsCount = Math.ceil(
-                (scaleFactor * labels.length) / intervalFactor,
-            )
-
-            const labelsPosition = {}
-
-            for (let i = 0; i < labelsCount; i += 1) {
-                const scrollFromLeft = (scroll - this.props.width) / 100
-                const newIndex = i * intervalFactor
-                const position = (newIndex / (labels.length - 1) - scrollFromLeft) * layout.width * scaleFactor
-
-                const value = labels[newIndex]
-
-                if (value) {
-                    if (layout.width >= position && position >= 0 - cellWidth) {
-                        labelsPosition[newIndex] = position
-                    }
-                }
-            }
-
-            return {
-                positions: labelsPosition,
-                count: labelsCount,
-            }
-        }
-
-    */
+    }
 
     drawDebugInfo() {
         const {
             layout,
-            // dataset = [],
             offset,
             limit,
             scroll,
@@ -856,27 +1005,6 @@ class Charts extends BaseComponent {
             graphOffset: { left, top, right, bottom },
             step,
         } = this.state
-
-        // dataset.forEach(({ color, list = [] }) => {
-        //   const graphWidth = step * list.length
-        //   const offsetPx = +((graphWidth * (scroll - width)) / 100).toFixed(2)
-
-        //   list.forEach((item, index) => {
-        //     const { x, y } = this.nAsix(index * step - offsetPx, item.value)
-
-        //     this.canvas.circle(x, y, 18, {
-        //       fill: true,
-        //       color,
-        //     })
-
-        //     this.canvas.text(item.value, {
-        //       x,
-        //       y: y + 3,
-        //       align: "center",
-        //       size: 16,
-        //     })
-        //   })
-        // })
 
         this.canvas.rect(0, 0, {
             width: 300,
@@ -955,11 +1083,38 @@ class Charts extends BaseComponent {
         )
     }
 
+    time = new Date()
+
+    drawFpsInfo() {
+        const time2 = new Date
+        const fps = 1000 / (time2 - this.time)
+        this.time = time2
+
+        this.canvas.rect(0, 0, {
+            width: 100,
+            height: 50,
+            color: "rgba(0, 0, 0, 0.5)",
+            fill: true,
+        })
+
+        this.canvas.text(`FPS: ${Math.ceil(fps / 10) * 10}`, {
+            x: 10,
+            y: 20,
+            align: "start",
+            color: "white",
+            size: 14,
+            font: "NeueHaasDisplay,Tahoma,sans-serif,Arial",
+        })
+    }
+
     draw() {
-        const { step, showInfo = false } = this.state
+        const { arcMode = false } = this.props
+
+        const { step, visibility = {}, showInfo = false } = this.state
 
         const {
             dataset = [],
+            visibled = [],
             allowXAsix,
             allowYAsix,
             allowPointValue,
@@ -970,13 +1125,11 @@ class Charts extends BaseComponent {
 
         let yLabesCanvasObjects = []
 
-        if (allowYAsix) {
-            yLabesCanvasObjects = this.createYLabels()
+        if (!arcMode && allowYAsix) {
+            yLabesCanvasObjects = this.getYLabels()
         }
 
-        if (allowXAsix) {
-            // this.drawXLabels()
-
+        if (!arcMode && allowXAsix) {
             const { id, scroll, labels, layout, width } = this.props
 
             const { graphLayout } = this.state
@@ -995,21 +1148,26 @@ class Charts extends BaseComponent {
             .filter(cnvsObj => cnvsObj instanceof CanvasLine)
             .forEach(cnvsObj => this.canvas.draw(cnvsObj))
 
-        // graphs
-        dataset.forEach(data => {
-            this.drawGraph(data.list, {
-                ...data,
+        if (dataset.length > 0 && dataset[0].list.length > 0) {
+            this.drawGraphs(
+                dataset,
                 step,
-                lineWidth,
-                drawPointValue: allowPointValue,
-            })
-        })
+                {
+                    visibled,
+                    visibility,
+                    lineWidth,
+                    allowPointValue,
+                    length: dataset[0].list.length,
+                }
+            )
+        }
 
         yLabesCanvasObjects
             .filter(cnvsObj => cnvsObj instanceof CanvasText)
             .forEach(cnvsObj => this.canvas.draw(cnvsObj))
 
         if (this.props.debug) this.drawDebugInfo()
+        if (this.props.fps) this.drawFpsInfo()
 
         if (showInfo !== false) {
             this.drawShowInfo()
@@ -1023,9 +1181,11 @@ class Charts extends BaseComponent {
             scroll,
             labels = [],
             dataset = [],
+            visibled = [],
             lineWidth,
             colors,
             layout,
+            yScaled = false
         } = this.props
 
         const { step, graphOffset, showInfo } = this.state
@@ -1048,41 +1208,55 @@ class Charts extends BaseComponent {
 
         const labelX = this.nAsix(index * step - offsetScroll, 0).x
 
-        const values = dataset
+        let values = dataset
+            .filter(item => visibled.includes(item.id))
+            // .filter(item => item.type === "line")
             .map(item => ({
                 value: item.list[index],
                 color: item.color,
                 label: item.label,
-            }))
-            .map(item => ({
-                ...item,
-                ...this.nAsix(index * step - offsetScroll, item.value),
+                type: item.type,
+                ...this.nAsix(index * step - offsetScroll, item.list[index], yScaled ? item.id : "common"),
             }))
 
-        this.canvas.line(
-            {
-                x: labelX,
-                y: 0,
-            },
-            {
-                x: labelX,
-                y: layout.height - graphOffset.bottom,
-            },
-            {
-                color: colors.activeLine,
-                lineWidth: 2,
-            },
-        )
+        const sum = values
+            .filter(item => item.type === "area")
+            .reduce((_s, item) => item.value + _s, 0)
 
-        values.forEach(value => {
-            this.canvas.circle(value.x, value.y, 5, {
-                lineWidth: lineWidth + 2,
-                color: colors.background,
-                strokColor: value.color,
+        values = values.map(item => ({
+            ...item,
+            percent: item.type === "area" ? item.value * 100 / sum : null
+        }))
+
+        const lines = values
+            .filter(item => item.type === "line")
+
+        if (lines.length > 0) {
+            this.canvas.line(
+                {
+                    x: labelX,
+                    y: 0,
+                },
+                {
+                    x: labelX,
+                    y: layout.height - graphOffset.bottom,
+                },
+                {
+                    color: colors.activeLine,
+                    lineWidth: 2,
+                },
+            )
+    
+            lines.forEach(value => {
+                this.canvas.circle(value.x, value.y, 5, {
+                    lineWidth: lineWidth + 2,
+                    color: colors.background,
+                    strokColor: value.color,
+                })
             })
-        })
+        }
 
-        let showInfoX = index * step - offsetScroll - 30
+        let showInfoX = index * step - offsetScroll + 10
 
         if (showInfoX < 0) {
             showInfoX = 0
@@ -1090,36 +1264,37 @@ class Charts extends BaseComponent {
 
         this.showInfoNode.innerHTML = ""
 
-        const chunkSize = 2
         const rows = []
 
-        for (let i = 0; i < values.length; i += chunkSize) {
-            const chunkValues = values.slice(i, i + chunkSize)
+        for (let i = 0; i < values.length; i += 1) {
+            const value = values[i]
 
-            const row = cre("div", {
-                className: style.canvas__show_info__row,
-            })
+            const classesRoot = [style.canvas__show_info__row__item]
 
-            chunkValues.forEach(value => {
-                row.appendChild(
-                    cre("div", {
-                        className: style.canvas__show_info__row__item,
-                        style: `color: ${value.color}`,
-                        children: [
-                            cre("div", {
-                                className: style.canvas__show_info__row__item__value,
-                                text: numberFormat(value.value),
-                            }),
-                            cre("div", {
-                                className: style.canvas__show_info__row__item__name,
-                                text: value.label,
-                            }),
-                        ],
-                    }),
-                )
-            })
+            if (values.some(item => item.percent !== null) && values.length > 1) {
+                classesRoot.push(style.canvas__show_info__row__item_with_percent)
+            }
 
-            rows.push(row)
+            rows.push(
+                cre("div", {
+                    className: classesRoot,
+                    children: [
+                        cre("div", {
+                            className: style.canvas__show_info__row__item__percent,
+                            text: Math.round(value.percent) + "%",
+                        }),
+                        cre("div", {
+                            className: style.canvas__show_info__row__item__name,
+                            text: value.label,
+                        }),
+                        cre("div", {
+                            className: style.canvas__show_info__row__item__value,
+                            style: `color: ${value.color}`,
+                            text: numberFormat(value.value),
+                        }),
+                    ],
+                }),
+            )
         }
 
         this.showInfoNode.appendChild(
@@ -1130,22 +1305,25 @@ class Charts extends BaseComponent {
                         className: style.canvas__show_info__title,
                         text: label,
                     }),
-                    ...rows,
+                    cre("div", {
+                        className: style.canvas__show_info__rows,
+                        children: rows
+                    }),
                 ],
             }),
         )
 
-        if (showInfoX + this.showInfoNode.clientWidth > layout.width) {
-            showInfoX = layout.width - this.showInfoNode.clientWidth
+        if (showInfoX + this.showInfoNode.clientWidth + 30 > layout.width) {
+            showInfoX = layout.width - this.showInfoNode.clientWidth - 30
         }
 
         this.showInfoNode.setAttribute("style", `opacity: 1;left: ${showInfoX}px`)
     }
 
-    eventStartShowInfo = throttle((e, prevShowInfo = false) => {
+    eventStartShowInfo = e => {
         const currentPosition = getClickPosition(e)
 
-        const { step, showInfo = false } = this.state
+        const { step } = this.state
 
         const { scroll, labels = [] } = this.props
 
@@ -1161,27 +1339,22 @@ class Charts extends BaseComponent {
         const index = Math.round(rX / step)
 
         if (index > 0 && index < labels.length) {
-            if (showInfo === false || prevShowInfo !== index) {
-                this.setState({
-                    showInfo: index,
-                })
-            } else {
-                this.setState({
-                    showInfo: false,
-                })
-            }
-        } else if (showInfo !== false && !prevShowInfo) {
+            this.setState({
+                showInfo: index,
+            })
+        } else {
             this.setState({
                 showInfo: false,
             })
         }
-    }, 100)
+    }
 
     eventMouseDown = e => {
-        if (!this.isShowInfo)
+        console.log("eventMouseDown", this.isShowInfo)
+
+        if (!this.isShowInfo && !this.props.arcMode)
         {
             this.tapPosition = getClickPosition(e)
-            this.prevShowInfo = this.state.showInfo
     
             this.isShowInfo = true
     
@@ -1189,21 +1362,239 @@ class Charts extends BaseComponent {
         }
     }
 
-    eventMouseMove = e => {
-        if (this.isShowInfo) {
+    eventTouchMove = e => {
+        const closestEl = e.target.closest(`.${style.canvas__show_info}`)
+        const isNotOverShowInfo = closestEl != this.showInfoNode
+
+        console.log("eventTouchMove", this.isShowInfo)
+
+        if (isNotOverShowInfo && this.isShowInfo && !this.props.arcMode) {
             this.eventStartShowInfo(e)
         }
     }
 
-    eventMouseUp = e => {
-        if (this.isShowInfo) {        
-            const currentPosition = getClickPosition(e)
+    eventUpdateMouse = (e) => {
+        const currentPosition = getClickPosition(e, this.element)
 
-            if (Math.abs(currentPosition.x - this.tapPosition.x) < +this.state.step.toFixed(2)) {
-                this.eventStartShowInfo(e, this.prevShowInfo)
+        if (
+            currentPosition.x !== this.state.mouse.pointX ||
+            currentPosition.y !== this.state.mouse.pointY
+        ) {
+            this.setState({
+                mouse: {
+                    pointX: currentPosition.x,
+                    pointY: currentPosition.y,
+                }
+            })
+        }
+    }
+
+    eventMouseMove = e => {
+        const closestEl = e.target.closest(`.${style.canvas__show_info}`)
+        const isNotOverShowInfo = closestEl != this.showInfoNode
+
+        if (isNotOverShowInfo && this.isShowInfo && !this.props.arcMode) {
+            this.eventStartShowInfo(e)
+        }
+        
+        this.eventUpdateMouse(e)
+    }
+
+    eventMouseUp = (e) => {
+        const closestEl = e.target.closest(`.${style.canvas_wrapper}`)
+        const isOutside = closestEl != this.element
+
+        if (isOutside && !this.props.arcMode) {
+            console.log("eventMouseUp", this.isShowInfo)
+    
+            if (this.isShowInfo) {        
+                // const currentPosition = getClickPosition(e)
+    
+                // if (Math.abs(currentPosition.x - this.tapPosition.x) < +this.state.step.toFixed(2)) {
+                //     this.eventStartShowInfo(e, this.prevShowInfo)
+                // }
+    
+                this.isShowInfo = false
+    
+                this.setState({
+                    showInfo: false,
+                })
             }
+        }
+    }
+
+    eventMouseLeave = () => {
+        console.log("eventMouseLeave", this.isShowInfo)
+
+        if (this.isShowInfo && !this.props.arcMode) {
+            // const currentPosition = getClickPosition(e)
+
+            // if (Math.abs(currentPosition.x - this.tapPosition.x) < +this.state.step.toFixed(2)) {
+            //     this.eventStartShowInfo(e, this.prevShowInfo)
+            // }
 
             this.isShowInfo = false
+
+            this.setState({
+                showInfo: false,
+            })
+        }
+    }
+
+    eventMouseEnter = (e) => {
+        console.log("eventMouseEnter", this.isShowInfo)
+
+        if (!this.isShowInfo && !this.props.arcMode) {
+            this.isShowInfo = true
+
+            this.eventStartShowInfo(e)
+        }
+    }
+
+    handleFadeInLine(id) {
+        this.animations = this.animations
+            .filter(item => item.type !== `anim-dataset-${id}`)
+
+        this.animations.push({
+            type: `anim-dataset-${id}`,
+            startAt: Date.now(),
+            step: (progress) => {
+                this.setState({
+                    visibility: {
+                        ...this.state.visibility,
+                        [id]: animateEase(progress),
+                    }
+                })
+            },
+            duration: 300,
+        })
+    }
+
+    handleFadeOutLine(id) {
+        this.animations = this.animations
+            .filter(item => item.type !== `anim-dataset-${id}`)
+
+        this.animations.push({
+            type: `anim-dataset-${id}`,
+            startAt: Date.now(),
+            step: (progress) => {
+                this.setState({
+                    visibility: {
+                        ...this.state.visibility,
+                        [id]: 1 - animateEase(progress),
+                    }
+                })
+            },
+            duration: 300,
+        })
+    }
+
+    minMaxLines = {}
+
+    handleScale(type, graphMinMax) {
+        const { layout } = this.props
+
+        const animationTimeout = 300
+
+        if (Object.keys(this.minMaxLines).includes(type) === false) {
+            this.minMaxLines[type] = [9999999999, 0]
+        }
+
+        const [min, max] = graphMinMax[type]
+
+        const prevMin = this.minMaxLines[type][0]
+        const prevMax = this.minMaxLines[type][1]
+
+        if (prevMin !== min || prevMax !== max) {
+            const minYRange = min - prevMin
+            const maxYRange = max - prevMax
+    
+            // let animateYLinesDir = maxY - minY > prevMax - prevMin? 1 : -1
+            // let animHeight = maxY - minY
+    
+            let animateYLinesDir = prevMax > max ? 1 : -1
+            let animHeight = Math.abs(maxYRange)
+    
+            if (prevMax == max) {
+                animateYLinesDir = prevMin< min ? 1 : -1
+                animHeight = Math.abs(minYRange)
+            }
+    
+            if (Math.abs(animHeight) > layout.height / 2) {
+                const direction = animHeight >= 0 ? 1 : -1
+    
+                animHeight = (layout.height / 2) * direction
+            }
+    
+            const animationStep = ([minR, maxR], [_minY, _maxY]) => progress => {
+                const rangeMinProgress = minR * progress
+                const rangeMaxXProgress = maxR * progress
+    
+                const newMinY = rangeMinProgress + _minY
+    
+                const newMaxY = rangeMaxXProgress + _maxY
+    
+                const animateYLines = progress > 0 ? progress * animateYLinesDir : animateYLinesDir
+    
+                // const animHeight = 50
+                const direction = animateYLines >= 0 ? 1 : -1
+                const reverseProgress = (1 - Math.abs(animateYLines))
+    
+                const cHeight =
+                    animateYLines !== 0 && reverseProgress !== 0 ?
+                        animHeight * reverseProgress * direction :
+                        0
+    
+                this.updateGraphOptions({
+                    ...this.state.graphMinMax,
+                    [type]: [newMinY, newMaxY]
+                }, cHeight)
+            }
+    
+            this.animations = this.animations
+                .filter(item => item.type !== `anim-graph-${type}`)
+    
+            this.animations.push({
+                type: `anim-graph-${type}`,
+                startAt: Date.now(),
+                step: animationStep([
+                        minYRange,
+                        maxYRange,
+                    ], [
+                        prevMin,
+                        prevMax,
+                    ]),
+                duration: animationTimeout,
+            })
+
+            this.minMaxLines[type] = [min, max]
+        } else {
+            this.updateGraphOptions({
+                ...this.state.graphMinMax,
+                [type]: [min, max]
+            }, 0)
+        }
+    }
+
+    handleApplyVisibility = (visibled) => {
+        const { dataset = [] } = this.props
+
+        const { visibility = {} } = this.state
+
+        const keyVisibility = Object.keys(visibility)
+
+        const idsDataset = dataset.map(item => item.id)
+
+        for (let index = 0; index < idsDataset.length; index++) {
+            const id = idsDataset[index]
+
+            const isVisible = keyVisibility.includes(id) && visibility[id] == 1
+            
+            if (isVisible && !visibled.includes(id)) {
+                this.handleFadeOutLine(id)
+            } else if (!isVisible && visibled.includes(id)) {
+                this.handleFadeInLine(id)
+            }
         }
     }
 
@@ -1223,14 +1614,6 @@ class Charts extends BaseComponent {
         })
     }
 
-    // handleHideShowInfo = (e) => {
-    //     e.stopPropagation()
-
-    //     this.setState({
-    //         showInfo: false
-    //     })
-    // }
-
     render() {
         const { allowXAsix = false } = this.props
 
@@ -1245,8 +1628,12 @@ class Charts extends BaseComponent {
         this.element = cre("div", {
             className: style.canvas_wrapper,
             children,
-            onMouseDown: throttle(this.eventMouseDown.bind(this), 10),
-            onTouchStart: throttle(this.eventMouseDown.bind(this), 10),
+            // onMouseDown: throttle(this.eventMouseDown.bind(this), 10),
+            onTouchMove: this.eventTouchMove.bind(this),
+            onMouseMove: this.eventMouseMove.bind(this),
+            onMouseLeave: this.eventMouseLeave.bind(this),
+            onMouseEnter: this.eventMouseEnter.bind(this),
+            onTouchStart: this.eventMouseDown.bind(this),
         })
 
         if (allowXAsix) {

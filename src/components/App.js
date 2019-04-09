@@ -1,11 +1,11 @@
 import BaseComponent, { cre } from "components/base"
 
 import Charts from "components/Charts"
-import IndexSelector from "components/IndexSelector"
 import LineSwitcher from "components/LineSwitcher"
 
-import { throttle, getClickPosition } from "helpers/utils"
+import { throttle } from "helpers/utils"
 import DataChart from 'helpers/DataChart'
+import { loadFile } from 'helpers/utils'
 
 import {
     MODE_COLOR_DAY,
@@ -15,6 +15,7 @@ import {
 } from 'constants/COLORS'
 
 import style from "./style.css"
+import MiniMap from './MiniMap'
 
 class App extends BaseComponent {
     static calcLimitOffset(length, width, scroll) {
@@ -39,13 +40,12 @@ class App extends BaseComponent {
         init: false,
         loading: true,
         index: 0,
+        yScaled: false,
     }
 
     element = false
 
     cart = false
-
-    cartMiniMap = false
 
     /* LIFECIRCLE */
 
@@ -84,11 +84,14 @@ class App extends BaseComponent {
             title = "",
             index = 0,
             loading = false,
-            charts = 0,
+            yScaled = false,
         } = this.state
 
-        const init =
-            this.cart && this.minimap && this.minimapZone && this.cartMiniMap
+        const {
+            arcMode = false,
+        } = this.props
+
+        const init = !!this.cart
 
         this.handleUpdateFontSize()
 
@@ -102,34 +105,37 @@ class App extends BaseComponent {
                     prevState.labels !== labels ||
                     prevState.scroll !== scroll ||
                     prevState.width !== width ||
+                    prevState.yScaled !== yScaled ||
+                    prevProps.arcMode !== arcMode ||
                     prevState.mode !== mode
                 ) {
-                    const visibledDataset = dataset.filter(item =>
-                        visibled.includes(item.id),
-                    )
-
-                    const length =
-                        visibledDataset.length > 0 ? visibledDataset[0].list.length : 0
+                    const length = dataset.length > 0 ? dataset[0].list.length : 0
 
                     const { limit, offset } = App.calcLimitOffset(length, width, scroll)
 
                     this.cart.setProps({
                         id: index,
-                        dataset: visibledDataset,
+                        yScaled,
+                        dataset,
+                        visibled,
                         labels,
                         offset,
                         limit,
                         scroll,
                         width,
+                        arcMode,
                         colors: MAP_MODE_COLOR_TO_CHART_COLORS[mode],
                     })
 
                     if (
                         prevState.dataset !== dataset ||
+                        prevState.yScaled !== yScaled ||
                         prevState.visibled !== visibled
                     ) {
-                        this.cartMiniMap.setProps({
-                            dataset: visibledDataset,
+                        this.miniMap.setProps({
+                            yScaled,
+                            dataset,
+                            visibled,
                         })
 
                         this.lineSwitcher.setProps({
@@ -151,31 +157,20 @@ class App extends BaseComponent {
                         },
                     })
 
-                    this.cartMiniMap.setProps({
-                        layout: {
-                            width: layout.width - 15 * 2,
-                            height: 50,
-                        },
+                    this.miniMap.setProps({
+                        layout,
                     })
                 }
 
                 if (prevState.scroll !== scroll || prevState.width !== width) {
-                    this.handleUpdateMiniMap()
+                    this.miniMap.setProps({
+                        scroll,
+                        width,
+                    })
                 }
 
                 if (prevState.title !== title || prevState.loading !== loading) {
                     this.handleUpdateTitle()
-                }
-
-                if (prevState.index !== index) {
-                    this.handleLoadDataCharts()
-                }
-
-                if (prevState.index !== index || prevState.charts !== charts) {
-                    this.indexSelector.setProps({
-                        index,
-                        charts,
-                    })
                 }
             }
         }
@@ -189,9 +184,9 @@ class App extends BaseComponent {
             this.cart = null
         }
 
-        if (this.cartMiniMap) {
-            this.cartMiniMap.destroy()
-            this.cartMiniMap = null
+        if (this.miniMap) {
+            this.miniMap.destroy()
+            this.miniMap = null
         }
     }
 
@@ -199,9 +194,6 @@ class App extends BaseComponent {
 
     dettachEvents() {
         document.removeEventListener("mousemove", this.documentEventMouseMove)
-        document.removeEventListener("mouseup", this.documentEventMouseUp)
-        document.removeEventListener("touchmove", this.documentEventMouseMove)
-        document.removeEventListener("touchend", this.documentEventMouseUp)
     }
 
     attachEvents() {
@@ -213,173 +205,6 @@ class App extends BaseComponent {
                 },
             })
         }, 100)
-
-        this.documentEventMouseMove = this.eventMouseMove.bind(this)
-        this.documentEventMouseUp = this.eventMouseUp.bind(this)
-
-        document.addEventListener("mousemove", this.documentEventMouseMove)
-        document.addEventListener("mouseup", this.documentEventMouseUp)
-        document.addEventListener("touchmove", this.documentEventMouseMove)
-        document.addEventListener("touchend", this.documentEventMouseUp)
-    }
-
-    eventLeftZoneMouseDown = e => {
-        const { width, scroll } = this.state
-
-        this.isChangeSize = true
-        this.changeSizeEvent = {
-            ...getClickPosition(e),
-            side: "left",
-            width,
-            scroll,
-        }
-    }
-
-    eventRightZoneMouseDown = e => {
-        const { width, scroll } = this.state
-
-        this.isChangeSize = true
-        this.changeSizeEvent = {
-            ...getClickPosition(e),
-            side: "right",
-            width,
-            scroll,
-        }
-    }
-
-    eventZoneMouseDown = e => {
-        const { scroll } = this.state
-
-        this.isChangePosition = true
-        this.changePositionEvent = {
-            ...getClickPosition(e),
-            scroll,
-        }
-    }
-
-    eventMouseMove = e => {
-        if (this.isChangePosition) {
-            const { layout, width } = this.state
-            const { scroll } = this.changePositionEvent
-
-            const clickPosition = {
-                x: this.changePositionEvent.x,
-                y: this.changePositionEvent.y,
-            }
-
-            const currentPosition = getClickPosition(e)
-
-            let dinst = clickPosition.x - currentPosition.x
-            const direction = dinst > 0 ? 1 : 0
-
-            dinst = Math.abs(dinst)
-
-            if (dinst !== 0) {
-                const diffScroll = (dinst * 100) / layout.width
-                let newScroll = scroll + diffScroll
-
-                if (direction === 1) {
-                    newScroll = scroll - diffScroll
-                }
-
-                if (newScroll - width < 0) {
-                    newScroll = width
-                }
-
-                if (newScroll > 100) {
-                    newScroll = 100
-                }
-
-                if (this.state.scroll !== newScroll) {
-                    // this.throttleSetScroll(newScroll)
-                    this.setState({
-                        scroll: newScroll,
-                    })
-                }
-            }
-        }
-
-        if (this.isChangeSize) {
-            const { layout } = this.state
-            const { width, side = "left" } = this.changeSizeEvent
-
-            const clickPosition = {
-                x: this.changeSizeEvent.x,
-                y: this.changeSizeEvent.y,
-            }
-
-            const currentPosition = getClickPosition(e)
-
-            let dinst = clickPosition.x - currentPosition.x
-            const direction = dinst > 0 ? 1 : 0
-
-            dinst = Math.abs(dinst)
-
-            if (dinst !== 0) {
-                if (side === "left") {
-                    const { scroll } = this.state
-
-                    const percentDinst = (dinst * 100) / layout.width
-                    let newWidth = width - percentDinst
-
-                    if (direction === 1) {
-                        newWidth = width + percentDinst
-                    }
-
-                    if (newWidth > scroll) {
-                        newWidth = scroll
-                    }
-
-                    if (newWidth < 10) {
-                        newWidth = 10
-                    }
-
-                    if (this.state.width !== newWidth) {
-                        this.setState({
-                            width: newWidth,
-                            // scroll: scroll - percentDinst
-                        })
-                    }
-                } else if (side === "right") {
-                    const { scroll } = this.changeSizeEvent
-
-                    const percentDinst = (dinst * 100) / layout.width
-                    let newWidth = width + percentDinst
-                    let newScroll = scroll + percentDinst
-
-                    if (direction === 1) {
-                        newWidth = width - percentDinst
-                        newScroll = scroll - percentDinst
-                    }
-
-                    if (newScroll > 100) {
-                        newScroll = 100
-
-                        const x = scroll - width
-
-                        newWidth = 100 - x
-                    }
-
-                    if (newWidth < 10) {
-                        newWidth = 10
-                    }
-
-                    if (this.state.width !== newWidth) {
-                        this.setState({
-                            width: newWidth,
-                            scroll: newScroll,
-                        })
-                    }
-                }
-            }
-        }
-    }
-
-    eventMouseUp = () => {
-        this.isChangePosition = false
-        this.isChangeSize = false
-        this.changePositionEvent = false
-        this.changeSizeEvent = false
     }
 
     /* HANDLES */
@@ -396,107 +221,32 @@ class App extends BaseComponent {
     }
 
     async handleLoadDataCharts() {
-        let { index = 0, dataJson = false } = this.state
+        const { name, dataUrl } = this.props
 
-        if (!dataJson) {
-            this.setState({
-                loading: true,
-            })
+        this.setState({
+            loading: true,
+        })
 
-            dataJson = await import("data.json")
-            dataJson = dataJson.default
-            // index = 0
-        }
+        const data = await loadFile(dataUrl)
 
-        const dataChart = new DataChart(dataJson[index])
+        const dataJson = JSON.parse(data)
 
-        const lines = dataChart.getLines()
+        const dataChart = new DataChart(dataJson)
+
+        const dataset = dataChart.getCharts()
         const labels = dataChart.getXAsix()
 
         this.setState({
             labels,
             dataJson,
-            title: `Chart ${index + 1}`,
+            yScaled: !!dataJson.y_scaled,
+            title: name,
             charts: dataJson.length,
-            dataset: lines,
-            visibled: lines.map(line => line.id),
+            dataset,
+            visibled: dataset.map(line => line.id),
             scroll: 100,
             width: 25,
             loading: false,
-        })
-    }
-
-    handleUpdateMiniMap() {
-        const { scroll, width } = this.state
-
-        this.minimapZone.style.left = `${scroll - width}%`
-        this.minimapZone.style.width = `${width}%`
-
-        this.minimapLeftZone.style = `width: ${scroll - width}%`
-        this.minimapRightZone.style = `width: ${100 - scroll}%`
-
-        this.minimapLeftSizeZone.style = `left: ${scroll - width}%;`
-        this.minimapRightSizeZone.style = `left: ${scroll}%;`
-    }
-
-    handleInitilizeMinimap() {
-        const { scroll, width } = this.state
-
-        this.minimapLeftZone = cre("div", {
-            className: style.minimap__left_zone,
-            style: `width: ${scroll - width}%`,
-        })
-
-        this.minimapLeftSizeZone = cre("div", {
-            className: style.minimap__left_size_zone,
-            style: `left: ${scroll - width}%;`,
-            children: cre("div", {
-                className: style.minimap__size_zone__helper,
-                onMouseDown: this.eventLeftZoneMouseDown.bind(this),
-                onTouchStart: this.eventLeftZoneMouseDown.bind(this),
-            }),
-        })
-
-        this.minimapZone = cre("div", {
-            className: style.minimap__zone,
-            style: `left: ${scroll - width}%; width: ${width}%`,
-            onMouseDown: this.eventZoneMouseDown.bind(this),
-            onTouchStart: this.eventZoneMouseDown.bind(this),
-        })
-
-        this.minimapRightSizeZone = cre("div", {
-            className: style.minimap__right_size_zone,
-            style: `left: ${scroll}%;`,
-            children: cre("div", {
-                className: style.minimap__size_zone__helper,
-                onMouseDown: this.eventRightZoneMouseDown.bind(this),
-                onTouchStart: this.eventRightZoneMouseDown.bind(this),
-            }),
-        })
-
-        this.minimapRightZone = cre("div", {
-            className: style.minimap__right_zone,
-            style: `width: ${100 - scroll}%`,
-        })
-
-        this.minimap = cre("div", {
-            className: style.minimap,
-            children: [
-                this.minimapLeftZone,
-                this.minimapLeftSizeZone,
-                this.minimapZone,
-                this.minimapRightSizeZone,
-                this.minimapRightZone,
-            ],
-        })
-
-        this.canvasWrapper = cre("div", {
-            className: style.minimap__canvas_wrapper,
-        })
-
-        this.minimapWrapper = cre("div", {
-            className: style.charts__minimap_wrapper,
-            children: [this.minimap, this.canvasWrapper],
         })
     }
 
@@ -517,6 +267,10 @@ class App extends BaseComponent {
 
     handleInitilizeCharts() {
         const {
+            arcMode = false,
+        } = this.props
+
+        const {
             visibled = [],
             dataset = [],
             labels,
@@ -525,27 +279,27 @@ class App extends BaseComponent {
             layout,
             mode,
             index,
+            yScaled = false,
         } = this.state
 
-        const visibledDataset = dataset.filter(item =>
-            visibled.includes(item.id),
-        )
-
-        const length =
-            visibledDataset.length > 0 ? visibledDataset[0].list.length : 0
+        const length = dataset.length > 0 ? dataset[0].list.length : 0
 
         const { limit, offset } = App.calcLimitOffset(length, width, scroll)
 
         this.cart = new Charts({
             id: index,
             // debug: true,
+            // fps: true,
             lineWidth: 3,
-            dataset: visibledDataset,
+            arcMode,
+            visibled,
+            dataset,
             offset,
             limit,
             scroll,
             width,
             labels,
+            yScaled,
             layout: {
                 width: layout.width,
                 height: (window.innerHeight / 100) * 40,
@@ -553,19 +307,15 @@ class App extends BaseComponent {
             colors: MAP_MODE_COLOR_TO_CHART_COLORS[mode],
         })
 
-        this.cartMiniMap = new Charts({
+        this.miniMap = new MiniMap({
             id: index,
-            lineWidth: 2,
-            dataset: visibledDataset,
-            allowXAsix: false,
-            allowYAsix: false,
-            layout: {
-                width: layout.width - 15 * 2,
-                height: 50,
-            },
+            dataset,
+            layout,
+            scroll,
+            width,
+            yScaled,
+            onChange: this.handleUpdateMiniMap.bind(this),
         })
-
-        this.handleInitilizeMinimap()
 
         this.lineSwitcher = new LineSwitcher({
             dataset,
@@ -576,11 +326,17 @@ class App extends BaseComponent {
         this.handleInitilizeColorModeSwitcher()
 
         this.cart.renderDom(this.element)
-        this.cartMiniMap.renderDom(this.canvasWrapper)
+        this.miniMap.renderDom(this.element)
 
-        this.element.appendChild(this.minimapWrapper)
         this.lineSwitcher.renderDom(this.element)
         this.element.appendChild(this.colorSwitcher)
+    }
+    
+    handleUpdateMiniMap({ width, scroll }) {
+        this.setState({
+            width,
+            scroll,
+        })
     }
 
     handleUpdateFontSize() {
@@ -657,7 +413,7 @@ class App extends BaseComponent {
     /* RENDER */
 
     render() {
-        const { title = "", loading = false, index = 0, charts = 0 } = this.state
+        const { title = "", loading = false } = this.state
 
         let fontSize = +(window.innerWidth / 40).toFixed(2)
 
@@ -668,20 +424,11 @@ class App extends BaseComponent {
             text: loading ? "Loading..." : title,
         })
 
-        this.indexSelector = new IndexSelector({
-            index,
-            charts,
-            onNext: this.handleNextIndex.bind(this),
-            onPrev: this.handlePrevIndex.bind(this),
-        })
-
         this.element = cre("div", {
             className: style.charts,
             style: `font-size: ${fontSize}px`,
             children: this.title,
         })
-
-        this.indexSelector.renderDom(this.element)
 
         return this.element
     }

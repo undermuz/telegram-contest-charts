@@ -67,6 +67,10 @@ module.exports = {
         new HtmlWebpackPlugin({
             template: commonPaths.templatePath,
         }),
+        new HtmlWebpackPlugin({
+            filename: "stage-2.html",
+            template: "src/html/stage-2.html",
+        }),
         new ScriptExtHtmlWebpackPlugin({
             defaultAttribute: 'async',
         }),

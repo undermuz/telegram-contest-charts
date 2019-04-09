@@ -50,6 +50,18 @@ export const throttle = (func, ms, firstSkip = false) => {
     return wrapper
 }
 
+export const getAnimProgress = (startAt, duration) => {
+    let timePassed = Date.now() - startAt
+
+    if (timePassed > duration) timePassed = duration
+
+    const progress = +(timePassed / duration).toFixed(2)
+
+    return progress
+}
+
+export const animateEase = (progress) => -progress * (progress - 2)
+
 export const animate = (draw, duration, endCallback, startCallback) => {
     let stared = false
 
@@ -70,15 +82,11 @@ export const animate = (draw, duration, endCallback, startCallback) => {
         }
 
         if (!stopKey) {
-            let timePassed = Date.now() - start
-
-            if (timePassed > duration) timePassed = duration
-
-            const progress = +(timePassed / duration).toFixed(2)
+            const progress = getAnimProgress(start, duration)
 
             draw(progress * 100)
 
-            if (timePassed < duration) {
+            if (progress < 1) {
                 requestAnimationFrame(stepAnimate)
             } else {
                 stop()
@@ -97,7 +105,7 @@ export const animate = (draw, duration, endCallback, startCallback) => {
     }
 }
 
-export const getClickPosition = e => {
+export const getClickPosition = (e, node = false) => {
     let postion = false
 
     if (e.touches && e.touches.length > 0) {
@@ -110,6 +118,11 @@ export const getClickPosition = e => {
             x: e.pageX,
             y: e.pageY,
         }
+    }
+
+    if (node) {
+        postion.x -= node.offsetLeft
+        postion.y -= node.offsetTop
     }
 
     return postion
@@ -182,3 +195,35 @@ const formatMoney = (n, c, d, t) => {
 }
 
 export const numberFormat = value => `${formatMoney(parseFloat(value), 0, '.', ' ')}`.replace('.00', '')
+
+export const componentToHex = (c) => {
+    var hex = c.toString(16);
+    return hex.length == 1 ? "0" + hex : hex;
+}
+
+export const rgbToHex = (r, g, b) => {
+    return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+}
+
+export const hexToRgb = (hex) => {
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : null;
+}
+
+export const loadFile = (url) => new Promise(ok => {
+    // read text from URL location
+    var request = new XMLHttpRequest()
+    request.open('GET', url, true)
+    request.send(null)
+    request.onreadystatechange = function () {
+        if (request.readyState === 4 && request.status === 200) {
+            var type = request.getResponseHeader('Content-Type')
+            
+            ok(request.responseText, type, request)
+        }
+    }
+})
