@@ -1,0 +1,28 @@
+.dates_range
+{
+    float: right;
+    padding: 10px;
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.dates_range__item
+{
+    float: left;
+}
+
+.dates_range__item + .dates_range__item:before
+{
+    content: "-";
+    float: left;
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+.dates_range__item__year,
+.dates_range__item__month,
+.dates_range__item__day
+{
+    float: left;
+    margin-right: 5px;
+}

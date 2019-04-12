@@ -22,13 +22,14 @@ class MiniMap extends BaseComponent {
 
         this.cartMiniMap = new Charts({
             id,
+            mini: true,
             lineWidth: 2,
             dataset,
             yScaled,
             allowXAsix: false,
             allowYAsix: false,
             layout: {
-                width: layout.width - 15 * 2,
+                width: layout.width,
                 height: 50,
             },
         })
@@ -66,7 +67,7 @@ class MiniMap extends BaseComponent {
                 visibled,
                 dataset,
                 layout: {
-                    width: layout.width - 15 * 2,
+                    width: layout.width,
                     height: 50,
                 },
             })

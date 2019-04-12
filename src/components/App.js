@@ -7,6 +7,8 @@ import { throttle } from "helpers/utils"
 import DataChart from 'helpers/DataChart'
 import { loadFile } from 'helpers/utils'
 
+import ZoomIcon from "svg/zoom.svg"
+
 import {
     MODE_COLOR_DAY,
     MODE_COLOR_NIGHT,
@@ -14,171 +16,20 @@ import {
     MAP_MODE_COLOR_TO_CHART_COLORS,
 } from 'constants/COLORS'
 
+import {
+    MAP_MONTHS,
+} from 'constants/DATES'
+
 import style from "./style.css"
 import MiniMap from './MiniMap'
+import DatesRange from './DatesRange';
 
-class App extends BaseComponent {
-    static calcLimitOffset(length, width, scroll) {
-        const limit = length > 0 ? Math.floor((length / 100) * width) : 0
-
-        const offset = length > 0 ? Math.floor((length / 100) * scroll) - limit : 0
-
-        return { limit, offset }
-    }
-
+class ChartItem extends BaseComponent {
     static defaultProps = {
-        startIndex: 0
-    }
-
-    state = {
-        title: "",
-        mode: MODE_COLOR_DAY,
-        scroll: 100,
-        width: 25,
-        dataset: [],
-        labels: [],
-        init: false,
-        loading: true,
-        index: 0,
-        yScaled: false,
-    }
-
-    element = false
-
-    cart = false
-
-    /* LIFECIRCLE */
-
-    constructor(props) {
-        super(props)
-
-        this.state.index = props.startIndex
-    }
-
-    componentDidMount() {
-        this.prepareOwnElement()
-
-        this.attachEvents()
-
-        this.state.layout = {
-            width: this.element.clientWidth,
-            height: this.element.clientHeight,
-        }
-
-        this.setState({
-            init: true,
-        })
-
-        this.handleLoadDataCharts()
-    }
-
-    componentDidUpdate(prevProps, prevState) {
-        const {
-            labels = [],
-            dataset = [],
-            visibled = [],
-            scroll,
-            width,
-            layout,
-            mode,
-            title = "",
-            index = 0,
-            loading = false,
-            yScaled = false,
-        } = this.state
-
-        const {
-            arcMode = false,
-        } = this.props
-
-        const init = !!this.cart
-
-        this.handleUpdateFontSize()
-
-        if (this.element) {
-            if (!init) {
-                this.handleInitilizeCharts()
-            } else {
-                if (
-                    prevState.visibled !== visibled ||
-                    prevState.dataset !== dataset ||
-                    prevState.labels !== labels ||
-                    prevState.scroll !== scroll ||
-                    prevState.width !== width ||
-                    prevState.yScaled !== yScaled ||
-                    prevProps.arcMode !== arcMode ||
-                    prevState.mode !== mode
-                ) {
-                    const length = dataset.length > 0 ? dataset[0].list.length : 0
-
-                    const { limit, offset } = App.calcLimitOffset(length, width, scroll)
-
-                    this.cart.setProps({
-                        id: index,
-                        yScaled,
-                        dataset,
-                        visibled,
-                        labels,
-                        offset,
-                        limit,
-                        scroll,
-                        width,
-                        arcMode,
-                        colors: MAP_MODE_COLOR_TO_CHART_COLORS[mode],
-                    })
-
-                    if (
-                        prevState.dataset !== dataset ||
-                        prevState.yScaled !== yScaled ||
-                        prevState.visibled !== visibled
-                    ) {
-                        this.miniMap.setProps({
-                            yScaled,
-                            dataset,
-                            visibled,
-                        })
-
-                        this.lineSwitcher.setProps({
-                            dataset,
-                            visibled,
-                        })
-                    }
-
-                    if (prevState.mode !== mode) {
-                        this.handleApplyColorMode()
-                    }
-                }
-
-                if (prevState.layout !== layout) {
-                    this.cart.setProps({
-                        layout: {
-                            width: layout.width - 15 * 2,
-                            height: (window.innerHeight / 100) * 40,
-                        },
-                    })
-
-                    this.miniMap.setProps({
-                        layout,
-                    })
-                }
-
-                if (prevState.scroll !== scroll || prevState.width !== width) {
-                    this.miniMap.setProps({
-                        scroll,
-                        width,
-                    })
-                }
-
-                if (prevState.title !== title || prevState.loading !== loading) {
-                    this.handleUpdateTitle()
-                }
-            }
-        }
+        animateScale: true
     }
 
     componentWillUnmount() {
-        this.dettachEvents()
-
         if (this.cart) {
             this.cart.destroy()
             this.cart = null
@@ -190,11 +41,407 @@ class App extends BaseComponent {
         }
     }
 
-    /* EVENTS */
+    componentDidUpdate(prevProps) {
+        const {
+            arcMode,
+            fontSize,
+            loading,
+            zoom,
+            colors,
+            layout,
+            mode,
+            data
+        } = this.props
 
-    dettachEvents() {
-        document.removeEventListener("mousemove", this.documentEventMouseMove)
+        if (prevProps !== fontSize) {
+            this.element.setAttribute("style", `font-size: ${fontSize}px`)
+        }
+
+        if (prevProps.mode !== mode) {
+            this.applyColorMode()
+        }
+
+        if (prevProps.arcMode !== arcMode) {
+            this.cart.setProps({
+                arcMode,
+            })
+        }
+
+        if (prevProps.colors !== colors) {
+            this.cart.setProps({
+                colors,
+            })
+
+            this.miniMap.setProps({
+                colors,
+            })
+        }
+
+        if (
+            prevProps.data.title !== data.title ||
+            prevProps.loading !== loading
+        ) {
+            this.updateTitle()
+        }
+
+        if (prevProps.data !== data) {
+            const {
+                data: {
+                    visibled = [],
+                    dataset = [],
+                    labels,
+                    scroll,
+                    width,
+                    yScaled = false,
+                    stacked = false,
+                }
+            } = this.props
+
+            const length = dataset.length > 0 ? dataset[0].list.length : 0
+
+            const { limit, offset } = App.calcLimitOffset(length, width, scroll)
+
+            this.cart.setProps({
+                yScaled,
+                dataset,
+                labels,
+                visibled,
+                offset,
+                limit,
+                scroll,
+                width,
+                stacked,
+            })
+
+            if (
+                prevProps.data.dataset !== dataset ||
+                prevProps.data.yScaled !== yScaled ||
+                prevProps.data.scroll !== scroll ||
+                prevProps.data.width !== width ||
+                prevProps.data.visibled !== visibled
+            ) {
+                this.miniMap.setProps({
+                    scroll,
+                    width,
+                    yScaled,
+                    visibled,
+                    dataset,
+                })
+
+                this.lineSwitcher.setProps({
+                    dataset,
+                    visibled,
+                })
+            }
+
+            if (
+                prevProps.data.scroll !== scroll ||
+                prevProps.data.width !== width ||
+                prevProps.data.dataset !== dataset ||
+                prevProps.data.labels !== labels
+            ) {
+                this.datesRange.setProps({
+                    from: labels[offset],
+                    to: labels[offset + limit - 1],
+                })
+            }
+        }
+
+        if (prevProps.zoom !== false && zoom === false) {
+            this.zoomOut.classList.toggle(style.charts__zoom_out__show)
+        } else if (prevProps.zoom === false && zoom !== false) {
+            this.zoomOut.classList.toggle(style.charts__zoom_out__show)
+        }
+
+        if (prevProps.layout !== layout) {
+            this.cart.setProps({
+                layout: {
+                    width: layout.width,
+                    height: (window.innerHeight / 100) * 40,
+                },
+            })
+
+            this.miniMap.setProps({
+                layout,
+            })
+        }
     }
+
+    applyColorMode() {
+        const { mode } = this.props
+
+        this.ownElement.classList.toggle(
+            style.mode_night,
+            mode === MODE_COLOR_NIGHT,
+        )
+
+        this.colorSwitcherItem.innerText = MAP_MODE_COLOR_TO_TEXT[mode]
+    }
+
+    updateTitle() {
+        const { data: { title = "" }, loading = false } = this.props
+
+        this.title.innerText = loading ? "Loading..." : title
+    }
+
+    changeMiniMap({ width, scroll }) {
+        this.props.onChangeOffsets({
+            width,
+            scroll,
+        })
+    }
+
+    render() {
+        const {
+            animateScale = true,
+            fontSize = 16,
+            loading = false,
+            arcMode = false,
+            zoomType = "none",
+            zoom = false,
+            colors,
+            layout,
+            mode,
+            data: {
+                title = "",
+                visibled = [],
+                dataset = [],
+                labels,
+                scroll,
+                width,
+                yScaled = false,
+                stacked = false,
+            }
+        } = this.props
+
+        const length = dataset.length > 0 ? dataset[0].list.length : 0
+
+        const { limit, offset } = App.calcLimitOffset(length, width, scroll)
+
+        this.cart = new Charts({
+            id: 1,
+            animateScale,
+            zoomType,
+            // debug: true,
+            // fps: true,
+            lineWidth: 3,
+            zoom,
+            arcMode,
+            visibled,
+            dataset,
+            offset,
+            limit,
+            scroll,
+            width,
+            labels,
+            yScaled,
+            stacked,
+            layout: {
+                width: layout.width,
+                height: (window.innerHeight / 100) * 40,
+            },
+            colors,
+            onZoom: this.props.onZoom
+        })
+
+        this.miniMap = new MiniMap({
+            id: 1,
+            dataset,
+            layout,
+            scroll,
+            width,
+            yScaled,
+            onChange: this.changeMiniMap.bind(this),
+        })
+
+        this.lineSwitcher = new LineSwitcher({
+            dataset,
+            visibled,
+            onSwitch: this.props.onSwitchVisible.bind(this)
+        })
+
+        this.colorSwitcherItem = cre("div", {
+            className: style.color__switcher__item,
+            text: MAP_MODE_COLOR_TO_TEXT[mode],
+            onClick: this.props.onToggleMode.bind(this)
+        })
+
+        this.colorSwitcher = cre("div", {
+            className: style.color__switcher,
+            children: this.colorSwitcherItem,
+        })
+
+        this.title = cre("h1", {
+            className: style.chart_title,
+            text: loading ? "Loading..." : title,
+        })
+
+        this.datesRange = new DatesRange({
+            from: labels[offset],
+            to: labels[offset + limit - 1],
+        })
+
+        this.zoomOut = cre("div", {
+            className: style.charts__zoom_out,
+            children: [
+                cre("div", {
+                    className: style.charts__zoom_out__icon,
+                    style: `background-image: url(${ZoomIcon})`,
+                }),
+                cre("div", {
+                    className: style.charts__zoom_out__text,
+                    text: "Zoom Out",
+                }),
+            ],
+            onClick: this.props.onZoomOut,
+        })
+
+        this.element = cre("div", {
+            className: style.charts,
+            style: `font-size: ${fontSize}px`,
+            children: [
+                this.title,
+                this.zoomOut,
+            ],
+        })
+        
+        this.datesRange.renderDom(this.element)
+        this.cart.renderDom(this.element)
+        this.miniMap.renderDom(this.element)
+        this.lineSwitcher.renderDom(this.element)
+
+        this.element.appendChild(this.colorSwitcher)
+
+        return this.element
+    }
+}
+
+class App extends BaseComponent {
+    static getXLabelText(unixTimestamp) {
+        const date = new Date(unixTimestamp)
+
+        const month = MAP_MONTHS[date.getMonth()]
+        const day = date.getDate()
+
+        const year = date.getFullYear()
+
+        const dateFormat = `${day} ${month} ${year}`
+
+        return dateFormat
+    }
+
+    static calcLimitOffset(length, width, scroll) {
+        let limit = length > 0 ? Math.round((length / 100) * width) : 0
+
+        let offset = length > 0 ? Math.round((length / 100) * scroll) - limit : 0
+
+        if (isNaN(limit)) {
+            limit = 0
+
+            console.warn("[App][calcLimitOffset] invalid params:", {
+                length, width, scroll
+            })
+        }
+
+        if (isNaN(offset)) {
+            offset = 0
+
+            console.warn("[App][calcLimitOffset] invalid params:", {
+                length, width, scroll
+            })
+        }
+
+        return { limit, offset }
+    }
+
+    static defaultProps = {
+        animateScale: true,
+        arcMode: false,
+    }
+
+    state = {
+        mode: MODE_COLOR_DAY,
+        layout: {
+            width: 0,
+            height: 0
+        },
+
+        data: {
+            title: "",
+            scroll: 100,
+            width: 25,
+            dataset: [],
+            labels: [],
+            visibled: [],
+            yScaled: false,
+        },
+
+        fontSize: 16,
+
+        init: false,
+        loading: true,
+        zoom: false,
+    }
+
+    element = false
+    chart = false
+
+    /* LIFECIRCLE */
+
+    componentDidMount() {
+        this.prepareOwnElement()
+
+        let fontSize = +(window.innerWidth / 40).toFixed(2)
+
+        if (fontSize > 16) fontSize = 16
+
+        this.setState({
+            fontSize,
+            init: true,
+            layout: {
+                width: this.element.clientWidth,
+                height: this.element.clientHeight,
+            },
+        })
+
+        this.handleLoadDataCharts()
+    }
+
+    componentDidUpdate(prevProps, prevState) {
+        const { arcMode } = this.props
+
+        const {
+            zoom,
+            fontSize,
+            loading,
+            layout,
+            mode,
+            data,
+        } = this.state
+
+        if (
+            prevProps.arcMode !== arcMode ||
+            prevState.zoom !== zoom ||
+            prevState.fontSize !== fontSize ||
+            prevState.loading !== loading ||
+            prevState.layout !== layout ||
+            prevState.mode !== mode ||
+            prevState.data !== data
+        ) {
+            this.chart.setProps({
+                zoom: zoom === false ? false : true,
+                arcMode: zoom === false ? false : arcMode,
+                fontSize,
+                loading,
+                colors: MAP_MODE_COLOR_TO_CHART_COLORS[mode],
+                layout,
+                mode,
+                data: zoom === false ? data : zoom,
+            })
+        }
+    }
+
+    /* EVENTS */
 
     attachEvents() {
         window.onresize = throttle(() => {
@@ -204,10 +451,42 @@ class App extends BaseComponent {
                     height: this.element.clientHeight,
                 },
             })
+
+            this.updateFontSize()
         }, 100)
     }
 
     /* HANDLES */
+
+    getCurrentData() {
+        const { data, zoom = false } = this.state
+
+        if (zoom !== false) {
+            return zoom
+        }
+
+        return data
+    }
+
+    setCurrentData(params = {}) {
+        const { data, zoom = false } = this.state
+
+        if (zoom !== false) {
+            this.setState({
+                zoom: {
+                    ...zoom,
+                    ...params,
+                },
+            })
+        } else {
+            this.setState({
+                data: {
+                    ...data,
+                    ...params,
+                },
+            })
+        }        
+    }
 
     prepareOwnElement() {
         const { mode } = this.state
@@ -220,6 +499,34 @@ class App extends BaseComponent {
         this.ownElement.classList.add(style.app)
     }
 
+    async loadData(url) {
+        const data = await loadFile(url)
+
+        const dataJson = JSON.parse(data)
+
+        const dataChart = new DataChart(dataJson)
+
+        return dataChart
+    }
+
+    setDataChart(dataChart, name = "Chart") {
+        const dataset = dataChart.getCharts()
+        const labels = dataChart.getXAsix()
+
+        this.setState({
+            data: {
+                title: name,
+                scroll: 100,
+                width: 25,
+                dataset,
+                labels,
+                visibled: dataset.map(line => line.id),
+                yScaled: dataChart.IsYScaled(), //!!dataJson.y_scaled,
+                stacked: dataChart.IsStacked(), //!!dataJson.stacked,
+            }
+        })
+    }
+
     async handleLoadDataCharts() {
         const { name, dataUrl } = this.props
 
@@ -227,124 +534,96 @@ class App extends BaseComponent {
             loading: true,
         })
 
-        const data = await loadFile(dataUrl)
+        const dataChart = await this.loadData(dataUrl)
 
-        const dataJson = JSON.parse(data)
-
-        const dataChart = new DataChart(dataJson)
-
-        const dataset = dataChart.getCharts()
-        const labels = dataChart.getXAsix()
+        this.setDataChart(dataChart, name)
 
         this.setState({
-            labels,
-            dataJson,
-            yScaled: !!dataJson.y_scaled,
-            title: name,
-            charts: dataJson.length,
-            dataset,
-            visibled: dataset.map(line => line.id),
-            scroll: 100,
-            width: 25,
             loading: false,
         })
     }
 
-    handleInitilizeColorModeSwitcher() {
-        const { mode } = this.state
-
-        this.colorSwitcherItem = cre("div", {
-            className: style.color__switcher__item,
-            text: MAP_MODE_COLOR_TO_TEXT[mode],
-            onClick: this.handleToggleColorMode.bind(this)
-        })
-
-        this.colorSwitcher = cre("div", {
-            className: style.color__switcher,
-            children: this.colorSwitcherItem,
-        })
-    }
-
-    handleInitilizeCharts() {
+    handleZoom = async (unixTimestamp, index) => {
         const {
-            arcMode = false,
+            zoomType = "none",
+            /*name,*/
+            getZoomedDataUrl,
         } = this.props
 
-        const {
-            visibled = [],
-            dataset = [],
-            labels,
-            scroll,
-            width,
-            layout,
-            mode,
-            index,
-            yScaled = false,
-        } = this.state
+        if (zoomType === "byDay") {
+            const data = this.getCurrentData()
 
-        const length = dataset.length > 0 ? dataset[0].list.length : 0
+            const offsetBefore = 5
+            const offsetAfter = 5
 
-        const { limit, offset } = App.calcLimitOffset(length, width, scroll)
+            let dataset = data.dataset.map(item => ({
+                ...item,
+                list: item.list.slice(index - offsetBefore, index + offsetAfter)
+            }))
+            let labels = data.labels.slice(index - offsetBefore, index + offsetAfter)
 
-        this.cart = new Charts({
-            id: index,
-            // debug: true,
-            // fps: true,
-            lineWidth: 3,
-            arcMode,
-            visibled,
-            dataset,
-            offset,
-            limit,
-            scroll,
-            width,
-            labels,
-            yScaled,
-            layout: {
-                width: layout.width,
-                height: (window.innerHeight / 100) * 40,
-            },
-            colors: MAP_MODE_COLOR_TO_CHART_COLORS[mode],
-        })
+            this.setState({
+                zoom: {
+                    title: data.title,
+                    visibled: data.visibled,
+                    yScaled: data.yScaled,
+                    index,
+                    unixTimestamp,
+                    offsetBefore,
+                    offsetAfter,
+                    scroll: 60,
+                    width: 10,
+                    labels,
+                    dataset,
+                }
+            })
+        } else if (zoomType === "byHours") {
+            const data = this.getCurrentData()
 
-        this.miniMap = new MiniMap({
-            id: index,
-            dataset,
-            layout,
-            scroll,
-            width,
-            yScaled,
-            onChange: this.handleUpdateMiniMap.bind(this),
-        })
+            this.setState({
+                loading: true,
+            })
 
-        this.lineSwitcher = new LineSwitcher({
-            dataset,
-            visibled,
-            onSwitch: this.handleSwitchDataSet.bind(this)
-        })
+            const dataUrl = getZoomedDataUrl(unixTimestamp)
 
-        this.handleInitilizeColorModeSwitcher()
+            const dataChart = await this.loadData(dataUrl)
 
-        this.cart.renderDom(this.element)
-        this.miniMap.renderDom(this.element)
+            const dataset = dataChart.getCharts()
+            const labels = dataChart.getXAsix()
 
-        this.lineSwitcher.renderDom(this.element)
-        this.element.appendChild(this.colorSwitcher)
+            // this.setDataChart(dataChart, `${name} - Zoomed`)
+
+            this.setState({
+                zoom: {
+                    title: data.title,
+                    yScaled: data.yScaled,
+                    scroll: 50,
+                    width: 10,
+                    labels,
+                    dataset,
+                    visibled: dataset.map(line => line.id),
+                },
+                loading: false,
+            })
+        }
     }
-    
-    handleUpdateMiniMap({ width, scroll }) {
+
+    handleZoomOut = () => {
         this.setState({
-            width,
-            scroll,
+            zoom: false
         })
     }
 
-    handleUpdateFontSize() {
+    updateFontSize() {
         let fontSize = +(window.innerWidth / 40).toFixed(2)
 
         if (fontSize > 16) fontSize = 16
 
-        this.element.setAttribute("style", `font-size: ${fontSize}px`)
+        if (this.state.fontSize !== fontSize) {
+            this.setState({
+                fontSize
+            })
+        }
     }
 
     handleToggleColorMode() {
@@ -355,80 +634,59 @@ class App extends BaseComponent {
         })
     }
 
-    handleApplyColorMode() {
-        const { mode } = this.state
-
-        this.ownElement.classList.toggle(
-            style.mode_night,
-            mode === MODE_COLOR_NIGHT,
-        )
-
-        this.colorSwitcherItem.innerText = MAP_MODE_COLOR_TO_TEXT[mode]
-    }
-
-    handleUpdateTitle() {
-        const { title = "", loading = false } = this.state
-
-        this.title.innerText = loading ? "Loading..." : title
-    }
-
     handleSwitchDataSet = lineId => {
-        const { visibled = [] } = this.state
+        const { visibled = [] } = this.getCurrentData()
 
         if (visibled.includes(lineId)) {
-            this.setState({
+            this.setCurrentData({
                 visibled: visibled.filter(_lineId => _lineId !== lineId),
             })
         } else {
-            this.setState({
+            this.setCurrentData({
                 visibled: [...visibled, lineId],
             })
         }
     }
 
-    handleNextIndex = () => {
-        const { index = 0, charts = 0 } = this.state
-
-        const newIndex = index + 1
-
-        if (newIndex < charts) {
-            this.setState({
-                index: newIndex,
-            })
-        }
-    }
-
-    handlePrevIndex = () => {
-        const { index = 0 } = this.state
-
-        const newIndex = index - 1
-
-        if (newIndex >= 0) {
-            this.setState({
-                index: newIndex,
-            })
-        }
+    handleUpdateMiniMap({ width, scroll }) {
+        this.setCurrentData({
+            width,
+            scroll,
+        })
     }
 
     /* RENDER */
 
     render() {
-        const { title = "", loading = false } = this.state
+        const { animateScale = true, zoomType = "none" } = this.props
 
-        let fontSize = +(window.innerWidth / 40).toFixed(2)
+        const { loading = false, zoom = false, layout, mode, data, fontSize = 16 } = this.state
 
-        if (fontSize > 16) fontSize = 16
+        this.chart = new ChartItem({
+            animateScale,
+            arcMode: false,
+            zoomType,
+            zoom,
+            fontSize,
+            loading,
+            colors: MAP_MODE_COLOR_TO_CHART_COLORS[mode],
+            layout,
+            mode,
+            data,
 
-        this.title = cre("h1", {
-            className: style.chart_title,
-            text: loading ? "Loading..." : title,
+            onToggleMode: this.handleToggleColorMode.bind(this),
+            onSwitchVisible: this.handleSwitchDataSet.bind(this),
+            onChangeOffsets: this.handleUpdateMiniMap.bind(this),
+            onZoom: this.handleZoom.bind(this),
+            onZoomOut: this.handleZoomOut.bind(this),
         })
 
         this.element = cre("div", {
-            className: style.charts,
+            className: style.app,
             style: `font-size: ${fontSize}px`,
-            children: this.title,
         })
+
+        this.chart.renderDom(this.element)
 
         return this.element
     }

@@ -9,10 +9,12 @@ export const MAP_MODE_COLOR_TO_TEXT = {
 export const MAP_MODE_COLOR_TO_CHART_COLORS = {
     [MODE_COLOR_DAY]: {
         background: "#fff",
-        text: "#96A2AA",
-        lines: "#F2F4F5",
-        lastLine: "#F2F4F5",
-        activeLine: "#F2F4F5",
+        text: "#182D3B",
+        lines: "#182D3B",
+        lastLine: "#182D3B",
+        activeLine: "#182D3B",
+        textOpacity: 0.7,
+        lineOpacity: 0.1
     },
     [MODE_COLOR_NIGHT]: {
         background: "#242F3E",

@@ -56,6 +56,17 @@
     color: #fff;
 }
 
+.canvas__show_info__title__value
+{
+    float: left;
+}
+
+.canvas__show_info__title__zoom
+{
+    color: grey;
+    float: right;
+}
+
 .canvas__show_info__rows
 {
     width: 100%;

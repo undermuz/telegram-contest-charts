@@ -62,14 +62,30 @@ class Canvas {
         this.ctx.clearRect(0, 0, width * this.dpr, height * this.dpr)
     }
 
-    text(text, { x, y, size = 12, align = "center", font = "serif", color = "black" }) {
+    text(text, { x, y, size = 12, align = "center", font = "serif", color = "#000000", opacity = 1 }) {
+        if (opacity < 1) {
+            const rgb = hexToRgb(color)
+
+            if (rgb !== null) {
+                color = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`
+            }
+        }
+
         this.ctx.font = `${Math.floor(size * this.dpr)}px ${font}`
         this.ctx.textAlign = align
         this.ctx.fillStyle = color
         this.ctx.fillText(text, x * this.dpr, y * this.dpr)
     }
 
-    line(from, to, { color = "black", lineWidth = 2 }) {
+    line(from, to, { color = "#000000", lineWidth = 2, opacity = 1 }) {
+        if (opacity < 1) {
+            const rgb = hexToRgb(color)
+
+            if (rgb !== null) {
+                color = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`
+            }
+        }
+
         this.ctx.beginPath()
         this.ctx.strokeStyle = color
         this.ctx.lineWidth = lineWidth * this.dpr
@@ -100,7 +116,15 @@ class Canvas {
     }
 
     arc(x, y, r, startAngle, endAngle, params) {
-        const { color = "black", mouseX = 0, mouseY = 0, mouseMove = false } = params
+        let { color = "#0000", opacity = 1, mouseX = 0, mouseY = 0, mouseMove = false } = params
+
+        if (opacity < 1) {
+            const rgb = hexToRgb(color)
+
+            if (rgb !== null) {
+                color = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`
+            }
+        }
 
         this.ctx.beginPath()
 
@@ -141,6 +165,9 @@ class Canvas {
 
     beginPath({ opacity = 1, color, lineWidth }) {
         this.ctx.beginPath()
+
+        this.ctx.lineJoin = 'bevel'
+        this.ctx.lineCap = 'butt'
 
         if (opacity < 1) {
             const rgb = hexToRgb(color)

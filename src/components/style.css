@@ -6,7 +6,7 @@
 
 .app *
 {
-    font-family: NeueHaasDisplay,Tahoma,sans-serif,Arial;
+    font-family: HelveticaNeueCyr,Tahoma,sans-serif,Arial;
 }
 
 .app.mode_night
@@ -20,11 +20,12 @@
     user-select: none;
     padding: 10px 15px;
     font-size: 16px;
+    position: relative;
 }
 
 .chart_title
 {
-    padding: 10px;
+    padding: 10px 0px;
     font-size: 1.5em;
     font-weight: bold;
     transition: color 0.2s;
@@ -47,13 +48,73 @@
     flex-wrap: wrap;
     padding: 1.2em 0;
     /* height: 6em; */
+    /* font-size: 18px; */
+    font-size: 1.8em;
 }
 
 .color__switcher__item
 {
     color: #36A8F1;
-    font-size: 2em;
+    /* font-size: 2em; */
     /* height: 2em; */
     cursor: pointer;
     user-select: none;
+    /* font-size: 0.97em; */
+}
+
+.charts__title_wrapper
+{
+    width: 100%;
+    display: flex;
+    align-items: center;
+    align-content: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.charts__zoom_out
+{
+    padding: 10px 0px;
+    position: absolute;
+    left: 15px;
+    top: 10px;
+    background-color: #FFFFFF;
+    display: flex;
+    opacity: 0;
+
+    transition: opacity 0.2s;
+}
+
+.charts__zoom_out__show
+{
+    opacity: 1;
+}
+
+.charts__zoom_out__icon
+{
+    width: 20px;
+    height: 20px;
+    margin-right: 7px;
+    background-position: top left;
+    background-repeat: no-repeat;
+    /* background-size: contain; */
+    background-size: auto;
+}
+
+.charts__zoom_out__text
+{
+    font-size: 17px;
+    font-weight: 500;
+    color: #108BE3;
+    padding-top: 3px;
+}
+
+
+.charts__dates
+{
+    float: right;
+    padding: 16px 0px 10px 0px;
+    /* font-size: 1.2em; */
+    font-size: 14px;
+    font-weight: bold;
 }

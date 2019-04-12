@@ -20,87 +20,90 @@ class LabelsX extends BaseComponent {
         const {
             labels = [],
             getLabel,
+            opacity = 1,
         } = this.props
 
-        const { positions, intervalFactor, removed } = this.calcXLabels()
-
-        const indexes = Object.keys(positions)
-        const existIndexes = Object.keys(this.domLabels)
-
-        for (let i = 0; i < existIndexes.length; i += 1) {
-            const index = +existIndexes[i]
-            const dom = this.domLabels[index]
-
-            if (
-                // !indexes.includes(index) ||
-                index % intervalFactor !== 0
-            ) {
-                dom.style.opacity = 0
-
-                animate(
-                    () => {
-                        const scaleFactor = 100 / this.props.width
-                        const scrollFromLeft = (this.props.scroll - this.props.width) / 100
-
-                        const x =
-                            this.props.layout.width *
-                            (index / (labels.length - 1) - scrollFromLeft) *
-                            scaleFactor
-
-                        dom.style.left = `${x}px`
-                    },
-                    200,
-                    () => {
-                        dom.remove()
-                    }
-                )
-
-                delete this.domLabels[index]
-            } else if (removed.includes(index)) {
-                dom.remove()
-                delete this.domLabels[index]
-            }
-        }
-
-        for (let i = 0; i < indexes.length; i += 1) {
-            const index = +indexes[i]
-
-            const x = positions[index]
-            const text = getLabel(labels[index])
-
-            let dom = this.domLabels[index]
-
-            if (!dom) {
-                const labelStyle = `left: ${x.toFixed(2)}px;opacity: ${changeViewWidth ? 0 : 1};`
-
-                dom = cre("div", {
-                    id: index,
-                    className: style.canvas_wrapper__x_labels_wrapper__item,
-                    text,
-                    style: labelStyle,
-                    data: {
-                        state: "rendered",
-                    },
-                })
-
-                this.element.appendChild(dom)
-
-                if (changeViewWidth)
-                {
-                    setTimeout(() => {
-                        dom.style.opacity = 1
-                    }, 1)
+        if (labels.length > 0) {
+            const { positions, intervalFactor, removed } = this.calcXLabels()
+    
+            const indexes = Object.keys(positions)
+            const existIndexes = Object.keys(this.domLabels)
+    
+            for (let i = 0; i < existIndexes.length; i += 1) {
+                const index = +existIndexes[i]
+                const dom = this.domLabels[index]
+    
+                if (
+                    // !indexes.includes(index) ||
+                    index % intervalFactor !== 0
+                ) {
+                    dom.style.opacity = 0
+    
+                    animate(
+                        () => {
+                            const scaleFactor = 100 / this.props.width
+                            const scrollFromLeft = (this.props.scroll - this.props.width) / 100
+    
+                            const x =
+                                this.props.layout.width *
+                                (index / (labels.length - 1) - scrollFromLeft) *
+                                scaleFactor
+    
+                            dom.style.left = `${x}px`
+                        },
+                        200,
+                        () => {
+                            dom.remove()
+                        }
+                    )
+    
+                    delete this.domLabels[index]
+                } else if (removed.includes(index)) {
+                    dom.remove()
+                    delete this.domLabels[index]
                 }
-
-                this.domLabels[index] = dom
-            } else {
-                const labelStyle = `left: ${x.toFixed(2)}px;opacity: 1;`
-
-                dom.setAttribute("style", labelStyle)
             }
+    
+            for (let i = 0; i < indexes.length; i += 1) {
+                const index = +indexes[i]
+    
+                const x = positions[index]
+                const text = getLabel(labels[index])
+    
+                let dom = this.domLabels[index]
+    
+                if (!dom) {
+                    const labelStyle = `left: ${x.toFixed(2)}px;opacity: ${changeViewWidth ? 0 : opacity};`
+    
+                    dom = cre("div", {
+                        id: index,
+                        className: style.canvas_wrapper__x_labels_wrapper__item,
+                        text,
+                        style: labelStyle,
+                        data: {
+                            state: "rendered",
+                        },
+                    })
+    
+                    this.element.appendChild(dom)
+    
+                    if (changeViewWidth)
+                    {
+                        setTimeout(() => {
+                            dom.style.opacity = 1
+                        }, 1)
+                    }
+    
+                    this.domLabels[index] = dom
+                } else {
+                    const labelStyle = `left: ${x.toFixed(2)}px;opacity: ${opacity};`
+    
+                    dom.setAttribute("style", labelStyle)
+                }
+            }
+            
+            this.indexes = indexes
         }
-        
-        this.indexes = indexes
     }
 
     clear() {
@@ -132,7 +135,8 @@ class LabelsX extends BaseComponent {
 
         const cellWidth = layout.width / labelsOnPage
 
-        const intervalCount = Math.floor(labels.length / labelsOnPage)
+        const intervalCount = labelsOnPage <= labels.length ? Math.floor(labels.length / labelsOnPage) : 1
+
         const intervalFactorLog = Math.ceil(Math.log2(intervalCount / scaleFactor))
         const intervalFactor = Math.pow(2, intervalFactorLog)
 

@@ -50,12 +50,15 @@ export const throttle = (func, ms, firstSkip = false) => {
     return wrapper
 }
 
-export const getAnimProgress = (startAt, duration) => {
-    let timePassed = Date.now() - startAt
+export const getAnimProgress = (startAt, duration, time = false) => {
+    if (!time) time = Date.now() 
+    
+    let timePassed = time - startAt
+    
+    let progress = timePassed / duration
 
-    if (timePassed > duration) timePassed = duration
-
-    const progress = +(timePassed / duration).toFixed(2)
+    if (progress < 0) progress = 0
+    if (progress > 1) progress = 1
 
     return progress
 }
@@ -105,6 +108,22 @@ export const animate = (draw, duration, endCallback, startCallback) => {
     }
 }
 
+export const calculateOffsets = (el) => {
+    if (!el) {
+        return {
+            top: 0,
+            left: 0,
+        }
+    }
+
+    const parentOffsets = calculateOffsets(el.offsetParent)
+
+    return {
+        top: el.offsetTop + parentOffsets.top,
+        left: el.offsetLeft + parentOffsets.left,
+    }
+}
+
 export const getClickPosition = (e, node = false) => {
     let postion = false
 
@@ -121,8 +140,11 @@ export const getClickPosition = (e, node = false) => {
     }
 
     if (node) {
-        postion.x -= node.offsetLeft
-        postion.y -= node.offsetTop
+
+        const offsets = calculateOffsets(node)
+
+        postion.x -= offsets.left
+        postion.y -= offsets.top
     }
 
     return postion

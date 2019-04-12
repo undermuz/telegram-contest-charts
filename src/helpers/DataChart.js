@@ -82,6 +82,18 @@ class DataChart {
             list: column.slice(1),
         }
     }
+
+    IsYScaled() {
+        return !!this.data.y_scaled
+    }
+
+    IsStacked() {
+        return !!this.data.stacked
+    }
+
+    get length() {
+        return this.data.length
+    }
 }
 
 export default DataChart
