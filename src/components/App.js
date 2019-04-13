@@ -59,6 +59,18 @@ class ChartItem extends BaseComponent {
 
         if (prevProps.mode !== mode) {
             this.applyColorMode()
+
+            this.cart.setProps({
+                mode,
+            })
+
+            this.miniMap.setProps({
+                mode,
+            })
+
+            this.lineSwitcher.setProps({
+                mode,
+            })
         }
 
         if (prevProps.arcMode !== arcMode) {
@@ -111,6 +123,7 @@ class ChartItem extends BaseComponent {
                 scroll,
                 width,
                 stacked,
+                zoom,
             })
 
             if (
@@ -224,7 +237,8 @@ class ChartItem extends BaseComponent {
             zoomType,
             // debug: true,
             // fps: true,
-            lineWidth: 3,
+            lineWidth: 2,
+            mode,
             zoom,
             arcMode,
             visibled,
@@ -246,6 +260,8 @@ class ChartItem extends BaseComponent {
 
         this.miniMap = new MiniMap({
             id: 1,
+            lineWidth: 2,
+            mode,
             dataset,
             layout,
             scroll,
@@ -255,15 +271,17 @@ class ChartItem extends BaseComponent {
         })
 
         this.lineSwitcher = new LineSwitcher({
+            mode,
             dataset,
             visibled,
-            onSwitch: this.props.onSwitchVisible.bind(this)
+            onSwitch: this.props.onSwitchVisible,
+            onSelectOne: this.props.onSelectOneVisible
         })
 
         this.colorSwitcherItem = cre("div", {
             className: style.color__switcher__item,
             text: MAP_MODE_COLOR_TO_TEXT[mode],
-            onClick: this.props.onToggleMode.bind(this)
+            onClick: this.props.onToggleMode
         })
 
         this.colorSwitcher = cre("div", {
@@ -296,16 +314,21 @@ class ChartItem extends BaseComponent {
             onClick: this.props.onZoomOut,
         })
 
-        this.element = cre("div", {
-            className: style.charts,
-            style: `font-size: ${fontSize}px`,
+        this.chartsHeader = cre("div", {
+            className: style.charts__header,
             children: [
                 this.title,
                 this.zoomOut,
             ],
         })
+
+        this.element = cre("div", {
+            className: style.charts,
+            style: `font-size: ${fontSize}px`,
+            children: this.chartsHeader,
+        })
         
-        this.datesRange.renderDom(this.element)
+        this.datesRange.renderDom(this.chartsHeader)
         this.cart.renderDom(this.element)
         this.miniMap.renderDom(this.element)
         this.lineSwitcher.renderDom(this.element)
@@ -399,7 +422,7 @@ class App extends BaseComponent {
             fontSize,
             init: true,
             layout: {
-                width: this.element.clientWidth,
+                width: window.innerWidth,
                 height: this.element.clientHeight,
             },
         })
@@ -648,6 +671,12 @@ class App extends BaseComponent {
         }
     }
 
+    handleSelectOneVisibleDataSet = lineId => {
+        this.setCurrentData({
+            visibled: [lineId],
+        })
+    }
+
     handleUpdateMiniMap({ width, scroll }) {
         this.setCurrentData({
             width,
@@ -676,6 +705,7 @@ class App extends BaseComponent {
 
             onToggleMode: this.handleToggleColorMode.bind(this),
             onSwitchVisible: this.handleSwitchDataSet.bind(this),
+            onSelectOneVisible: this.handleSelectOneVisibleDataSet.bind(this),
             onChangeOffsets: this.handleUpdateMiniMap.bind(this),
             onZoom: this.handleZoom.bind(this),
             onZoomOut: this.handleZoomOut.bind(this),

@@ -67,8 +67,9 @@ class LabelsX extends BaseComponent {
             for (let i = 0; i < indexes.length; i += 1) {
                 const index = +indexes[i]
     
-                const x = positions[index]
-                const text = getLabel(labels[index])
+                const [x, rIndex] = positions[index]
+                const text = getLabel(labels[rIndex])
+                // const text = this.props.getLabelIndexByX(x + (cellWidth / 2))
     
                 let dom = this.domLabels[index]
     
@@ -82,6 +83,9 @@ class LabelsX extends BaseComponent {
                         style: labelStyle,
                         data: {
                             state: "rendered",
+                            index: rIndex,
+                            position: x + (30 / 2),
+                            value: labels[rIndex]
                         },
                     })
     
@@ -97,8 +101,12 @@ class LabelsX extends BaseComponent {
                     this.domLabels[index] = dom
                 } else {
                     const labelStyle = `left: ${x.toFixed(2)}px;opacity: ${opacity};`
-    
+                    
+                    dom.innerText = text
                     dom.setAttribute("style", labelStyle)
+                    dom.dataset.index = rIndex
+                    dom.dataset.position = x + (30 / 2)
+                    dom.dataset.value = labels[rIndex]
                 }
             }
             
@@ -133,7 +141,7 @@ class LabelsX extends BaseComponent {
 
         const labelsOnPage = Math.ceil(layout.width / labelsXWidth)
 
-        const cellWidth = layout.width / labelsOnPage
+        const cellWidth = (layout.width - (18 * 2)) / labelsOnPage
 
         const intervalCount = labelsOnPage <= labels.length ? Math.floor(labels.length / labelsOnPage) : 1
 
@@ -151,16 +159,27 @@ class LabelsX extends BaseComponent {
 
             const scrollFromLeft = (scroll - this.props.width) / 100
 
-            const position =
-            layout.width *
+            let position =
+                layout.width *
                 (newIndex / (labels.length - 1) - scrollFromLeft) *
                 scaleFactor
 
-            const value = labels[newIndex]
+            position += 18
 
-            if (value) {
+            // if (newIndex === 0) {
+            //     position = 0
+            // }
+
+            // if (newIndex === labels.length - 1) {
+            //     position = layout.width - cellWidth
+            // }
+
+            // const value = labels[newIndex + 1]
+            const rIndex = this.props.getLabelIndexByX(position + (30 / 2))
+
+            if (rIndex) {
                 if (layout.width >= position && position >= 0 - cellWidth) {
-                    labelsPosition[newIndex] = position
+                    labelsPosition[newIndex] = [position, rIndex]
                 } else {
                     removed.push(newIndex)
                 }

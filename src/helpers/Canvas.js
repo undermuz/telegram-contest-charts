@@ -1,4 +1,5 @@
-import { hexToRgb } from './utils';
+import { hexToRgb } from 'helpers/Colors'
+
 class CanvasText {
     constructor(text, params = {}) {
         this.text = text

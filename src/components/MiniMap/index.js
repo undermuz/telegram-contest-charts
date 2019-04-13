@@ -18,10 +18,11 @@ class MiniMap extends BaseComponent {
     constructor(props) {
         super(props)
 
-        const { id, dataset = [], layout, yScaled } = props
+        const { id, dataset = [], mode, layout, yScaled } = props
 
         this.cartMiniMap = new Charts({
             id,
+            mode,
             mini: true,
             lineWidth: 2,
             dataset,
@@ -40,7 +41,7 @@ class MiniMap extends BaseComponent {
     }
 
     componentDidUpdate(prevProps) {
-        const { scroll, width, dataset, layout, visibled, yScaled } = this.props
+        const { scroll, width, dataset, layout, visibled, yScaled, mode } = this.props
 
         if (
             prevProps.scroll !== scroll ||
@@ -60,15 +61,17 @@ class MiniMap extends BaseComponent {
             prevProps.dataset !== dataset ||
             prevProps.yScaled !== yScaled ||
             prevProps.visibled !== visibled ||
-            prevProps.layout !== layout
+            prevProps.layout !== layout ||
+            prevProps.mode !== mode
         ) {
             this.cartMiniMap.setProps({
                 yScaled,
                 visibled,
                 dataset,
+                mode,
                 layout: {
-                    width: layout.width,
-                    height: 50,
+                    width: (layout.width - (18 * 2)),
+                    height: 45,
                 },
             })
         }
@@ -263,11 +266,16 @@ class MiniMap extends BaseComponent {
         this.minimapLeftSizeZone = cre("div", {
             className: style.minimap__left_size_zone,
             style: `left: ${scroll - width}%;`,
-            children: cre("div", {
-                className: style.minimap__size_zone__helper,
-                onMouseDown: this.eventLeftZoneMouseDown.bind(this),
-                onTouchStart: this.eventLeftZoneMouseDown.bind(this),
-            }),
+            children: [
+                cre("div", {
+                    className: style.minimap__size_zone__helper,
+                    onMouseDown: this.eventLeftZoneMouseDown.bind(this),
+                    onTouchStart: this.eventLeftZoneMouseDown.bind(this),
+                }),
+                cre("div", {
+                    className: style.minimap__size_zone__helper__line,
+                }),
+            ],
         })
 
         this.minimapZone = cre("div", {
@@ -280,11 +288,16 @@ class MiniMap extends BaseComponent {
         this.minimapRightSizeZone = cre("div", {
             className: style.minimap__right_size_zone,
             style: `left: ${scroll}%;`,
-            children: cre("div", {
-                className: style.minimap__size_zone__helper,
-                onMouseDown: this.eventRightZoneMouseDown.bind(this),
-                onTouchStart: this.eventRightZoneMouseDown.bind(this),
-            }),
+            children: [
+                cre("div", {
+                    className: style.minimap__size_zone__helper,
+                    onMouseDown: this.eventRightZoneMouseDown.bind(this),
+                    onTouchStart: this.eventRightZoneMouseDown.bind(this),
+                }),
+                cre("div", {
+                    className: style.minimap__size_zone__helper__line,
+                }),
+            ],
         })
 
         this.minimapRightZone = cre("div", {

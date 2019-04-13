@@ -3,10 +3,12 @@ import {
     abbreviateNumber,
     getClickPosition,
     numberFormat,
-    hexToRgb,
 } from 'helpers/utils'
 
+import { hexToRgb, rgbToHsl, hslToRgb } from 'helpers/Colors'
+
 import Canvas, { CanvasLine, CanvasText } from 'helpers/Canvas'
+import { getAnimProgress, animateEase } from 'helpers/utils'
 
 import BaseComponent, { cre } from 'components/base'
 
@@ -15,13 +17,20 @@ import {
     MAP_WEEK_DAYS,
 } from 'constants/DATES'
 
+import {
+    MODE_COLOR_DAY,
+    MODE_COLOR_NIGHT,
+} from 'constants/COLORS'
+
 import style from './style'
 import LabelsX from './LabelsX'
-import { getAnimProgress, animateEase } from '../../helpers/utils';
-import BarChart from './BarChart';
+import BarChart from './BarChart'
+
+import ArrowIcon from 'svg/arrow.svg'
 
 class Charts extends BaseComponent {
     static defaultProps = {
+        mode: MODE_COLOR_DAY,
         arcMode: false,
         animateScale: true,
         allowXAsix: true,
@@ -39,17 +48,6 @@ class Charts extends BaseComponent {
         },
         yScaled: false,
         zoomType: "none",
-    }
-
-    static getXLabelText(unixTimestamp) {
-        const date = new Date(unixTimestamp)
-
-        const month = MAP_MONTHS[date.getMonth()]
-        const day = date.getDate()
-
-        const dateFormat = `${month} ${day}`
-
-        return dateFormat
     }
 
     static calcXStep = ({
@@ -81,6 +79,14 @@ class Charts extends BaseComponent {
             this.state.graphOffset.bottom = 30
         } else {
             this.state.graphOffset.bottom = 0
+        }
+
+        if (!this.props.mini) {
+            this.state.graphOffset.left = 18
+            this.state.graphOffset.right = 18
+        } else {
+            this.state.graphOffset.left = 0
+            this.state.graphOffset.right = 0
         }
     }
 
@@ -315,7 +321,7 @@ class Charts extends BaseComponent {
     findMinMaxForLine(list, params = {}, def = {}) {
         let { min = 99999999999, max = 0 } = def
 
-        const { offset, limit } = params
+        const { offset = 0, limit = 0 } = params
 
         let maxIter = offset + limit
 
@@ -334,7 +340,7 @@ class Charts extends BaseComponent {
     findMinMaxForBars(dataset, params, def = {}) {
         let { min = 99999999999, max = 0 } = def
 
-        const { visibled = [], offset, limit } = params
+        const { visibled = [], offset = 0, limit = 0 } = params
 
         let maxIter = offset + limit
 
@@ -402,6 +408,43 @@ class Charts extends BaseComponent {
         }
     }
 
+    findAbsoluteMinMax() {
+        const { dataset = [], visibled = [] } = this.props
+
+        let min = 99999999
+        let max = 0
+
+        if (dataset.length > 0) {
+            dataset
+                .filter(item => item.type === "line")
+                .forEach(item => {
+                    const { id, list } = item
+
+                    const minMax = this.findMinMaxForLine(list)
+
+                    if (visibled.includes(id)) {
+                        min = minMax[0] < min ? minMax[0] : min
+                        max = minMax[1] > max ? minMax[1] : max
+                    }
+                })
+
+            const bars = dataset
+                .filter(item => item.type === "bar" || item.type === "area")
+
+            if (bars.length > 0) {
+                const minMax = this.findMinMaxForBars(bars, { visibled })
+
+                min = minMax[0] < min ? minMax[0] : min
+                max = minMax[1] > max ? minMax[1] : max
+            }
+        } else {
+            min = 0
+            max = 10
+        }
+
+        return [min, max]
+    }
+
     nAsix(x, y, yType = "common") {
         const {
             layout: { height = 0 },
@@ -454,13 +497,17 @@ class Charts extends BaseComponent {
     }
 
     setGraphOptions(minMax, options, layout) {
-        const { scroll = 0, limit = 0, length, animateYLines = 0 } = options
+        const { scroll = 0, limit = 0, length, animateYLines } = options
         const { width } = layout
 
         const heightGraph = this.getHeightGraph()
         const widthGraph = this.getWidthGraph()
         
         const scales = {}
+
+        if (animateYLines !== undefined) {
+            scales.animateYLines = animateYLines
+        }
 
         Object.keys(minMax).forEach(minmax_id => {
             const [min, max] = minMax[minmax_id]
@@ -485,9 +532,9 @@ class Charts extends BaseComponent {
             step,
             graphMinMax: minMax,
             graphScale: {
+                ...this.state.graphScale,
                 ...scales,
-                x: scaleX,
-                animateYLines,
+                x: scaleX
             },
             graphLayout: {
                 ...this.state.graphLayout,
@@ -499,7 +546,7 @@ class Charts extends BaseComponent {
         })
     }
 
-    updateGraphOptions = (minMax, animateYLines = 0) => {
+    updateGraphOptions = (minMax, animateYLines) => {
         const { scroll, width, layout } = this.props
 
         const length = this.getLength()
@@ -524,20 +571,22 @@ class Charts extends BaseComponent {
     calc() {
         const { dataset = [], visibled = [], yScaled = false, animateScale = true } = this.props
 
+        this.absoluteMinMax = this.findAbsoluteMinMax()
+        
         const minMax = this.findMinMax()
 
         if (animateScale) {
             if (!yScaled) {
-                this.handleAnimScale("common", minMax, 400)
+                this.handleAnimScale("common", minMax, 400, true)
             } else {
                 dataset
                     .filter(item => visibled.includes(item.id))
-                    .forEach(item => {
-                        this.handleAnimScale(item.id, minMax, 400)
+                    .forEach((item, index) => {
+                        this.handleAnimScale(item.id, minMax, 400, index === 0)
                     })
             }
         } else {
-            this.updateGraphOptions(minMax)
+            this.updateGraphOptions(minMax, 0)
         }
 
         // const { dataset = [], visibled = [], yScaled = false } = this.props
@@ -564,7 +613,10 @@ class Charts extends BaseComponent {
 
         const { yScaled = false } = this.props
 
-        const { graphLayout: { offsetPx } } = this.state
+        const {
+            graphLayout: { offsetPx },
+            graphOffset: { left, right },
+        } = this.state
 
         const path = this.canvas.beginPath({
             color: params.color,
@@ -579,7 +631,7 @@ class Charts extends BaseComponent {
             
             const { x, y } = this.nAsix(index * params.step - offsetPx, item, yType)
     
-            if (x >= 0 - (params.step * 2) && x <= width + (params.step * 2)) {
+            if (x >= 0 - (left * 2) && x <= left + width + (right * 2)) {
                 if (index === 0) {
                     path.moveTo(x, y)
                 } else {
@@ -603,6 +655,8 @@ class Charts extends BaseComponent {
     }
 
     drawLines(dataset, step, params = {}) {
+        const { mode = MODE_COLOR_DAY } = this.props
+
         const {
             visibility = {},
             lineWidth = 3,
@@ -612,10 +666,30 @@ class Charts extends BaseComponent {
         for (let index = 0; index < dataset.length; index++) {
             const data = dataset[index]
 
+            let { color } = data
+            const opacity = visibility[data.id]
+
+            let rgb = hexToRgb(color)
+
+            if (mode === MODE_COLOR_NIGHT) {
+                const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b)
+
+                const darknessRgb = hslToRgb(hsl[0], hsl[1] - 0.25, hsl[2])
+
+                rgb.r = darknessRgb[0]
+                rgb.g = darknessRgb[1]
+                rgb.b = darknessRgb[2]
+            }
+
+            if (opacity < 1) {
+                color = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
+            } else {
+                color = `rgba(${rgb.r},${rgb.g},${rgb.b},1)`
+            }
+
             this.drawLine(data.list, {
                 id: data.id,
-                opacity: visibility[data.id],
-                color: data.color,
+                color,
                 step,
                 lineWidth,
                 drawPointValue: allowPointValue,
@@ -630,8 +704,11 @@ class Charts extends BaseComponent {
         const {
             graphMinMax: { common: [,max] },
             graphLayout: { offsetPx },
+            graphOffset: { left, right },
             showInfo = false,
         } = this.state
+
+        const { mode = MODE_COLOR_DAY } = this.props
 
         const {
             visibility = {},
@@ -649,7 +726,7 @@ class Charts extends BaseComponent {
         for (let index = 0; index < length; index++) {
             const { x } = this.nAsix(index * step - offsetPx, 0)
 
-            if (x >= 0 - (step * 2) && x <= width + (step * 2)) {
+            if (x >= 0 - (left * 2) && x <= left + width + (right * 2)) {
                 let sum = 0
                 
                 dataset.forEach(item => {
@@ -669,9 +746,9 @@ class Charts extends BaseComponent {
                     const v = item.list[index] * opacity
                     // const v = item.list[index]
     
-                    let percent = v * 100 / sum
+                    let percent = v > 0 ? v * 100 / sum : 0
 
-                    if (percent < 2) {
+                    if (percent < 2 && percent > 0) {
                         additionalOffset += 2
                     }
                 })
@@ -690,51 +767,65 @@ class Charts extends BaseComponent {
                     const v = item.list[index] * opacity
                     // const v = item.list[index]
     
-                    let percent = v * 100 / sum
+                    let percent = v > 0 ? v * 100 / sum : 0
 
-                    if (percent < 2) percent = 2
+                    if (percent < 2 && percent > 0) percent = 2
+
+                    if (percent > 0) {
+                        const barHeight = iterHeight * percent / 100
     
-                    const barHeight = iterHeight * percent / 100
-
-                    if (showInfo !== false) {
-                        if (showInfo === index) {
-                            opacity = 1
+                        if (showInfo !== false) {
+                            if (showInfo === index) {
+                                opacity = 1
+                            } else {
+                                opacity = 0.4
+                            }                        
+                        }
+    
+                        let { color } = item
+    
+                        // if (opacity === 1) {
+                        //     opacity = 0.8
+                        // }
+                        let rgb = hexToRgb(color)
+    
+                        if (mode === MODE_COLOR_NIGHT) {
+                            const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b)
+    
+                            const darknessRgb = hslToRgb(hsl[0], hsl[1] - 0.25, hsl[2])
+    
+                            rgb.r = darknessRgb[0]
+                            rgb.g = darknessRgb[1]
+                            rgb.b = darknessRgb[2]
+                        }
+    
+                        if (opacity < 1) {
+                            const Bkg = mode === MODE_COLOR_NIGHT ? 0 : 255
+    
+                            color = `rgb(${rgb.r * opacity + Bkg * (1 - opacity)},${rgb.g * opacity + Bkg * (1 - opacity)},${rgb.b * opacity + Bkg * (1 - opacity)})`
                         } else {
-                            opacity = 0.4
-                        }                        
+                            color = `rgb(${rgb.r},${rgb.g},${rgb.b})`
+                        }
+                        
+                        this.canvas.rect(Math.ceil(x), height - (barHeight + yOffset), {
+                            width: Math.ceil(step),
+                            height: barHeight,
+                            color,
+                            fill: true,
+                        })
+    
+                        // barsData.positions[id] = {
+                        //     x,
+                        //     y: height - (barHeight + yOffset),
+                        //     width: step,
+                        //     height: barHeight,
+                        //     opacity,
+                        //     color
+                        // }
+    
+                        yOffset += barHeight
                     }
-
-
-                    let { color } = item
-
-                    // if (opacity === 1) {
-                    //     opacity = 0.8
-                    // }
-
-                    if (opacity < 1) {
-                        const rgb = hexToRgb(color)
-                        const Bkg = 255
-
-                        color = `rgb(${rgb.r * opacity + Bkg * (1 - opacity)},${rgb.g * opacity + Bkg * (1 - opacity)},${rgb.b * opacity + Bkg * (1 - opacity)})`
-                    }
-                    
-                    this.canvas.rect(Math.ceil(x), height - (barHeight + yOffset), {
-                        width: Math.ceil(step),
-                        height: barHeight,
-                        color,
-                        fill: true,
-                    })
-
-                    // barsData.positions[id] = {
-                    //     x,
-                    //     y: height - (barHeight + yOffset),
-                    //     width: step,
-                    //     height: barHeight,
-                    //     opacity,
-                    //     color
-                    // }
-
-                    yOffset += barHeight
+    
                 })
             } /*else {
                 dataset.forEach(item => {
@@ -758,7 +849,10 @@ class Charts extends BaseComponent {
 
         const {
             graphLayout: { offsetPx },
+            graphOffset: { left, right },
         } = this.state
+
+        const { mode = MODE_COLOR_DAY } = this.props
 
         const {
             visibility = {},
@@ -773,7 +867,7 @@ class Charts extends BaseComponent {
         for (let index = 0; index < length; index++) {
             const { x } = this.nAsix(index * step - offsetPx, 0)
 
-            if (x >= 0 - (step * 2) && x <= width + (step * 2)) {
+            if (x >= 0 - (left * 2) && x <= left + width + (right * 2)) {
                 let sum = 0
 
                 dataset.forEach(item => {
@@ -813,6 +907,10 @@ class Charts extends BaseComponent {
 
             let opacity = visibility[item.id]
 
+            // if (opacity === 1) {
+            //     opacity = 0.8
+            // }
+
             if (areaOpacity < 1)
             {
                 opacity = areaOpacity
@@ -823,11 +921,22 @@ class Charts extends BaseComponent {
             // if (opacity === 1) {
             //     opacity = 0.8
             // }
+            let rgb = hexToRgb(color)
+
+            if (mode === MODE_COLOR_NIGHT) {
+                const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b)
+
+                const darknessRgb = hslToRgb(hsl[0], hsl[1] - 0.25, hsl[2])
+
+                rgb.r = darknessRgb[0]
+                rgb.g = darknessRgb[1]
+                rgb.b = darknessRgb[2]
+            }
 
             if (opacity < 1) {
-                const rgb = hexToRgb(color)
-
                 color = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
+            } else {
+                color = `rgba(${rgb.r},${rgb.g},${rgb.b},1)`
             }
             
             const path = this.canvas.beginPath({
@@ -836,7 +945,12 @@ class Charts extends BaseComponent {
                 lineWidth: params.lineWidth,
             })
 
-            path.moveTo(0, height)
+            const positionLast = this.nAsix(width, height)
+
+            const positionStart = itemPaths[0]
+            const positionEnd = itemPaths[itemPaths.length - 1]
+
+            path.moveTo(positionStart.x, positionLast.y)
     
             for (let index = 0; index < itemPaths.length; index++) {
                 const { x, y } = itemPaths[index]
@@ -844,7 +958,7 @@ class Charts extends BaseComponent {
                 path.lineTo(x, y)
             }
 
-            path.lineTo(width, height)
+            path.lineTo(positionEnd.x, positionLast.y)
     
             path.fill()
         }
@@ -1028,15 +1142,31 @@ class Charts extends BaseComponent {
 
         const yLabelValueStep = deltaY / yLabelStep
 
-        for (let index = -25; index < 25; index += 1) {
-            const position = this.nAsix(0, yLabelHeightStep * index + min, type)
+        const dir = cHeight >= 0 ? 1 : -1
+        cHeight = Math.abs(cHeight)
+
+        const zoomFrom = this.zoomFactor
+        const zoomTo = 1 - this.zoomFactor
+
+        const transformY = dir === 1 ?
+            (y) => (y * (zoomFrom + (zoomTo * cHeight))) :
+            (y) => {
+                return cHeight > 0 ? (y / (zoomFrom + (zoomTo * cHeight))) : 0
+            }
+
+        // for (let index = -25; index < 25; index += 1) {
+        for (let index = -5; index < yLabelStep + 5; index += 1) {
+            const positionStart = this.nAsix(0, yLabelHeightStep * index + min, type)
+            const positionEnd = this.nAsix(width, yLabelHeightStep * index + min, type)
 
             const text = Math.floor(yLabelValueStep * index + min)
 
+            const y = transformY(positionStart.y)
+
             canvasObjects.push(
                 new CanvasText(abbreviateNumber(text), {
-                    x: pos === "start" ? 0 + asixX : width,
-                    y: position.y - 10 + asixY + cHeight,
+                    x: pos === "start" ? positionStart.x + asixX : positionEnd.x,
+                    y: y - 10 + asixY /*+ cHeight*/,
                     align: pos,
                     color,
                     opacity: opacity < 1 ? opacity : colors.textOpacity,
@@ -1048,17 +1178,17 @@ class Charts extends BaseComponent {
             canvasObjects.push(
                 new CanvasLine(
                     {
-                        x: 0 + asixX,
-                        y: position.y + asixY + cHeight,
+                        x: positionStart.x + asixX,
+                        y: y + asixY,
                     },
                     {
-                        x: width + asixX,
-                        y: position.y + asixY + cHeight,
+                        x: positionEnd.x,
+                        y: y + asixY,
                     },
                     {
                         color: index > 0 ? colors.lines : colors.lastLine,
                         opacity: opacity < 1 ? opacity : colors.lineOpacity,
-                        lineWidth: 2,
+                        lineWidth: 1,
                     },
                 ),
             )
@@ -1230,7 +1360,6 @@ class Charts extends BaseComponent {
             allowYAsix,
             allowPointValue,
             lineWidth = 3,
-            stacked = false,
         } = this.props
 
         this.canvas.clear()
@@ -1257,30 +1386,40 @@ class Charts extends BaseComponent {
             })
         }
 
-        if (!stacked) {
-            yLabesCanvasObjects
-                .filter(cnvsObj => cnvsObj instanceof CanvasLine)
-                .forEach(cnvsObj => this.canvas.draw(cnvsObj))
-        }
+        const datasetBeforeLines = dataset.filter(item => item.type === "bar" || item.type === "area")
 
-        if (dataset.length > 0 && dataset[0].list.length > 0) {
+        if (datasetBeforeLines.length > 0 && datasetBeforeLines[0].list.length > 0) {
             this.drawGraphs(
-                dataset,
+                datasetBeforeLines,
                 step,
                 {
                     visibled,
                     visibility,
                     lineWidth,
                     allowPointValue,
-                    length: dataset[0].list.length,
+                    length: datasetBeforeLines[0].list.length,
                 }
             )
         }
 
-        if (stacked) {
-            yLabesCanvasObjects
-                .filter(cnvsObj => cnvsObj instanceof CanvasLine)
-                .forEach(cnvsObj => this.canvas.draw(cnvsObj))
+        yLabesCanvasObjects
+            .filter(cnvsObj => cnvsObj instanceof CanvasLine)
+            .forEach(cnvsObj => this.canvas.draw(cnvsObj))
+
+        const datasetAfterLines = dataset.filter(item => item.type !== "bar" && item.type !== "area")
+
+        if (datasetAfterLines.length > 0 && datasetAfterLines[0].list.length > 0) {
+            this.drawGraphs(
+                datasetAfterLines,
+                step,
+                {
+                    visibled,
+                    visibility,
+                    lineWidth,
+                    allowPointValue,
+                    length: datasetAfterLines[0].list.length,
+                }
+            )
         }
 
         yLabesCanvasObjects
@@ -1308,6 +1447,7 @@ class Charts extends BaseComponent {
             layout,
             yScaled = false,
             zoomType = "none",
+            zoom = false,
         } = this.props
 
         const { step, graphOffset, showInfo } = this.state
@@ -1326,7 +1466,19 @@ class Charts extends BaseComponent {
         const weekDay = MAP_WEEK_DAYS[date.getDay()]
         const day = date.getDate()
 
-        const label = `${weekDay}, ${month} ${day}`
+        let label = `${weekDay}, ${month} ${day}`
+
+        if (zoom !== false && zoomType === "byHours") {
+            const date = new Date(unixTimestamp)
+
+            let hours = date.getHours()
+            let minutes = date.getMinutes()
+
+            if (`${hours}`.length === 1) hours = `0${hours}`
+            if (`${minutes}`.length === 1) minutes = `0${minutes}`
+
+            label = `${hours}:${minutes}`
+        }
 
         const labelX = this.nAsix(index * step - offsetScroll, 0).x
 
@@ -1426,12 +1578,14 @@ class Charts extends BaseComponent {
             }),
         ]
 
-        if (zoomType !== "none") {
-
+        if (zoom === false && zoomType !== "none") {
             children.push(
                 cre("div", {
                     className: style.canvas__show_info__title__zoom,
-                    text: ">"
+                    children: cre("div", {
+                        className: style.canvas__show_info__title__zoom__icon,
+                        style: `background-image: url(${ArrowIcon})`,
+                    }),
                 }),
             )
         }
@@ -1459,33 +1613,42 @@ class Charts extends BaseComponent {
         this.showInfoNode.setAttribute("style", `opacity: 1;left: ${showInfoX}px`)
     }
 
+    getLabelIndexByX(x) {
+        const { step } = this.state
+
+        const { labels = [] } = this.props
+
+        const index = Math.round(x / step)
+
+        if (index > 0 && index < labels.length) {
+            return index
+        }
+
+        return false
+    }
+
+    getLabelIndexByRelativeX(x) {
+        const {
+            graphScale,
+            graphLayout: { offsetPx },
+            graphOffset: { left }
+        } = this.state
+
+        const index = this.getLabelIndexByX(offsetPx + ((x - left) / graphScale.x))
+
+        return index
+    }
+
     eventStartShowInfo = e => {
         const currentPosition = getClickPosition(e)
 
-        const { step } = this.state
-
-        const { scroll, labels = [] } = this.props
-
         const x = currentPosition.x - this.element.offsetLeft
 
-        const width = labels.length * step
+        const index = this.getLabelIndexByRelativeX(x)
 
-        const offsetScroll = (width / 100) * (scroll - this.props.width)
-
-        const nX = this.nAsix(x, 0).x
-        const rX = nX + offsetScroll
-
-        const index = Math.round(rX / step)
-
-        if (index > 0 && index < labels.length) {
-            this.setState({
-                showInfo: index,
-            })
-        } else {
-            this.setState({
-                showInfo: false,
-            })
-        }
+        this.setState({
+            showInfo: index,
+        })
     }
 
     eventMouseDown = e => {
@@ -1547,7 +1710,7 @@ class Charts extends BaseComponent {
         const closestEl = e.target.closest(`.${style.canvas_wrapper}`)
         const isOutside = closestEl != this.element
 
-        console.log("[Charts][Event: MouseUp]", { isOutside }, e)
+        // console.log("[Charts][Event: MouseUp]", { isOutside }, e)
 
         if (isOutside && arcMode === false) {    
             if (this.isShowInfo) {        
@@ -1591,6 +1754,33 @@ class Charts extends BaseComponent {
             this.isShowInfo = true
 
             this.eventStartShowInfo(e)
+        }
+    }
+
+    getLabelText(unixTimestamp) {
+        const { zoom = false, zoomType = "none" } = this.props
+
+        if (zoom !== false && zoomType === "byHours") {
+            const date = new Date(unixTimestamp)
+
+            let hours = date.getHours()
+            let minutes = date.getMinutes()
+
+            if (`${hours}`.length === 1) hours = `0${hours}`
+            if (`${minutes}`.length === 1) minutes = `0${minutes}`
+
+            const dateFormat = `${hours}:${minutes}`
+
+            return dateFormat
+        } else {
+            const date = new Date(unixTimestamp)
+    
+            const month = MAP_MONTHS[date.getMonth()]
+            const day = date.getDate()
+    
+            const dateFormat = `${month} ${day}`
+    
+            return dateFormat
         }
     }
 
@@ -1900,7 +2090,9 @@ class Charts extends BaseComponent {
         }
     }
 
-    handleAnimScale(type, minMax, duration = 150) {
+    handleAnimScale(type, minMax, duration = 150, animYlines = false) {
+        const { layout } = this.props
+
         let prevMin = 9999999999
         let prevMax = 0
 
@@ -1921,15 +2113,57 @@ class Charts extends BaseComponent {
             max
         ]
 
-        this.createAnimation(`anim-y-minmax-${type}`, (progress) => {
-            const minValue = fromValue[0] + (toValue[0] - fromValue[0]) * progress
-            const maxValue = fromValue[1] + (toValue[1] - fromValue[1]) * progress
+        const prevHeight = fromValue[1] - fromValue[0]
+        const currentHeight = toValue[1] - toValue[0]
 
+        this.zoomFactor = prevHeight > currentHeight ? prevHeight / currentHeight : currentHeight / prevHeight
+
+        const ranges = [
+            (toValue[0] - fromValue[0]),
+            (toValue[1] - fromValue[1]),
+        ]
+
+        let animateYLinesDir = prevMax > max ? 1 : -1
+        let animHeight = Math.abs(ranges[1])
+
+        if (prevMax == max) {
+            animateYLinesDir = prevMin < min ? 1 : -1
+            animHeight = Math.abs(ranges[0])
+        }
+
+        if (Math.abs(animHeight) > layout.height / 2) {
+            const direction = animHeight >= 0 ? 1 : -1
+
+            animHeight = (layout.height / 2) * direction
+        }
+
+        if (ranges[0] !== 0 || ranges[1] !== 0) {
+            this.createAnimation(`anim-y-minmax-${type}`, (progress) => {
+                const minValue = fromValue[0] + ranges[0] * progress
+                const maxValue = fromValue[1] + ranges[1] * progress
+    
+                const animateYLines = progress > 0 ? progress * animateYLinesDir : animateYLinesDir
+    
+                // const animHeight = 50
+                const direction = animateYLines >= 0 ? 1 : -1
+                const reverseProgress = (1 - Math.abs(animateYLines))
+    
+                const cHeight =
+                    animateYLines !== 0 && reverseProgress !== 0 ?
+                        animHeight * reverseProgress * direction :
+                        0
+    
+                this.updateGraphOptions({
+                    ...this.state.graphMinMax,
+                    [type]: [minValue, maxValue]
+                }, animYlines ? progress * animateYLinesDir : undefined)
+            }, duration)
+        } else {
             this.updateGraphOptions({
                 ...this.state.graphMinMax,
-                [type]: [minValue, maxValue]
-            })
-        }, duration)
+                [type]: toValue
+            }, animYlines ? 1 : undefined)
+        }
     }
 
     handleScaleYMinMax() {
@@ -1985,7 +2219,8 @@ class Charts extends BaseComponent {
             labels,
             layout,
             graphLayout,
-            getLabel: Charts.getXLabelText,
+            getLabel: this.getLabelText.bind(this),
+            getLabelIndexByX: this.getLabelIndexByRelativeX.bind(this),
         })
     }
 

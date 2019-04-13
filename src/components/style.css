@@ -18,15 +18,21 @@
 {
     width: 100%;
     user-select: none;
-    padding: 10px 15px;
+    padding: 10px 0px;
     font-size: 16px;
     position: relative;
 }
 
+.charts__header
+{
+    width: 100%;
+    padding: 0px 18px;
+}
+
 .chart_title
 {
-    padding: 10px 0px;
-    font-size: 1.5em;
+    padding: 10px 10px 20px 0px;
+    font-size: 17px;
     font-weight: bold;
     transition: color 0.2s;
     color: #222222;
@@ -46,20 +52,16 @@
     justify-content: center;
     text-align: center;
     flex-wrap: wrap;
-    padding: 1.2em 0;
-    /* height: 6em; */
-    /* font-size: 18px; */
-    font-size: 1.8em;
+    font-size: 18px;
+    letter-spacing: 0.42px;
+    padding: 40px 18px 0px 18px;
 }
 
 .color__switcher__item
 {
     color: #36A8F1;
-    /* font-size: 2em; */
-    /* height: 2em; */
     cursor: pointer;
     user-select: none;
-    /* font-size: 0.97em; */
 }
 
 .charts__title_wrapper
@@ -74,7 +76,7 @@
 
 .charts__zoom_out
 {
-    padding: 10px 0px;
+    padding: 8px 0px 20px 0px;
     position: absolute;
     left: 15px;
     top: 10px;
@@ -97,7 +99,6 @@
     margin-right: 7px;
     background-position: top left;
     background-repeat: no-repeat;
-    /* background-size: contain; */
     background-size: auto;
 }
 
@@ -109,12 +110,10 @@
     padding-top: 3px;
 }
 
-
 .charts__dates
 {
     float: right;
     padding: 16px 0px 10px 0px;
-    /* font-size: 1.2em; */
     font-size: 14px;
     font-weight: bold;
 }

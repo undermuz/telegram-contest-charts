@@ -9,6 +9,11 @@ class DatesRange extends BaseComponent {
         to: false,
     }
 
+    state = {
+        date_from: false,
+        date_to: false
+    }
+
     nodes = {
         from: false,
         to: false,
@@ -26,15 +31,16 @@ class DatesRange extends BaseComponent {
     }
 
     componentDidUpdate(prevProps, prevState) {
-        const { from, to } = this.props
+        const { from = false, to = false } = this.props
+        const { from: prevFrom = false, to: prevTo = false } = prevProps
 
         const { date_from, date_to } = this.state
         
-        if (from !== prevProps.from) {
+        if (from !== prevFrom) {
             this.applyTimestamp(from, "from")
         }
 
-        if (to !== prevProps.to) {
+        if (to !== prevTo) {
             this.applyTimestamp(to, "to")
         }
 
@@ -42,8 +48,28 @@ class DatesRange extends BaseComponent {
             this.applyDateItem(date_from, "from")
         }
 
-        if (date_to !== prevState.date_to) {
+        if (!this.isSameDay(date_from, date_to) && date_to !== prevState.date_to) {
             this.applyDateItem(date_to, "to")
+        }
+        
+        if (this.isSameDay(date_from, date_to) && this.isDateItemShown("to")) {
+            this.hideDateItem(date_to, "to")
+        }
+
+        // debugger
+    }
+
+    isSameDay(from, to) {
+        if (from !== false && to !== false) {    
+            return (
+                from.year === to.year &&
+                from.month === to.month &&
+                from.day === to.day
+            )
+        } else if (from === false && to === false) {
+            return false
+        } else {
+            return false
         }
     }
 
@@ -120,22 +146,38 @@ class DatesRange extends BaseComponent {
             this.nodes[type].day.innerText = params.day
         }
     }
+    
+    isDateItemShown(type = "from") {
+        return this.nodes[type] !== false
+    }
+
+    showDateItem(params = false, type = "from") {
+        if (params !== false) {
+            this.appearDateItem(params, type)
+
+            if (this.nodes[type]) {
+                this.element.appendChild(this.nodes[type].item)
+            }
+        }
+    }
+
+    hideDateItem(params = false, type = "from") {
+        if (this.nodes[type]) {
+            this.element.removeChild(this.nodes[type].item)
+
+            this.nodes[type] = false
+        }
+    }
 
     applyDateItem(params = false, type = "from") {
-        if (this.nodes[type]) {
+        if (this.isDateItemShown(type)) {
             if (params !== false) {
                 this.updateDateItem(params, type)
             } else {
-                this.element.removeChild(this.nodes[type].item)
+                this.hideDateItem(params, type)
             }
-        } else {
-            if (params !== false) {
-                this.appearDateItem(params, type)
-
-                if (this.nodes[type]) {
-                    this.element.appendChild(this.nodes[type].item)
-                }
-            }
+        } else if (params !== false) {
+            this.showDateItem(params, type)
         }
     }
 

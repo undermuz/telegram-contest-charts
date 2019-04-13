@@ -12,15 +12,17 @@ export const MAP_MODE_COLOR_TO_CHART_COLORS = {
         text: "#182D3B",
         lines: "#182D3B",
         lastLine: "#182D3B",
-        activeLine: "#182D3B",
+        activeLine: "#D2D5D7",
         textOpacity: 0.7,
         lineOpacity: 0.1
     },
     [MODE_COLOR_NIGHT]: {
         background: "#242F3E",
-        text: "#546778",
-        lines: "#293544",
-        lastLine: "#313D4D",
-        activeLine: "#3B4A5A",
+        text: "#FFFFFF",
+        lines: "#FFFFFF",
+        lastLine: "#FFFFFF",
+        activeLine: "#FFFFFF",
+        textOpacity: 0.7,
+        lineOpacity: 0.1,
     },
 }
