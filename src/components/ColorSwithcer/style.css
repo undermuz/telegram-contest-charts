@@ -1,0 +1,32 @@
+.color__switcher
+{
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex-wrap: wrap;
+    font-size: 18px;
+    letter-spacing: 0.42px;
+    padding: 40px 18px 37px 18px;
+    background-color: #fff;
+    transition: background-color 0.2s;
+}
+
+.color__switcher.mode_night
+{
+    background-color: #242F3E;
+}
+
+.color__switcher__item
+{
+    cursor: pointer;
+    user-select: none;
+    color: #108BE3;
+    transition: color 0.2s;
+}
+
+.mode_night .color__switcher__item
+{
+    color: #48AAF0;
+}

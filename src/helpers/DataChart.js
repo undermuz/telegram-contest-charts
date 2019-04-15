@@ -91,6 +91,10 @@ class DataChart {
         return !!this.data.stacked
     }
 
+    IsPercentage() {
+        return !!this.data.percentage
+    }
+
     get length() {
         return this.data.length
     }

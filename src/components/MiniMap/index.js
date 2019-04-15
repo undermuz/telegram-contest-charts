@@ -96,6 +96,37 @@ class MiniMap extends BaseComponent {
         document.addEventListener("touchend", this.documentEventMouseUp)
     }
 
+    handleChange({ scroll, width }) {
+        if (this.props.grid) {
+            const { dataset = [] } = this.props
+
+            const length = dataset.length > 0 ? dataset[0].list.length : 0
+            const step = length > 0 ? 100 / length : 1
+
+            const newScroll = Math.ceil(scroll / step) * step
+            const newWidth = Math.ceil(width / step) * step
+
+            // console.log({
+            //     step,
+            //     length,
+            //     scroll,
+            //     width,
+            //     newScroll,
+            //     newWidth,
+            // })
+
+            this.props.onChange({
+                scroll: newScroll,
+                width: newWidth,
+            })
+        } else {
+            this.props.onChange({
+                scroll,
+                width,
+            })
+        }
+    }
+
     eventMouseMove = e => {
         if (this.isChangePosition) {
             const { layout, width } = this.props
@@ -130,7 +161,7 @@ class MiniMap extends BaseComponent {
                 }
 
                 if (this.props.scroll !== newScroll) {
-                    this.props.onChange({
+                    this.handleChange({
                         scroll: newScroll,
                         width,
                     })
@@ -174,7 +205,7 @@ class MiniMap extends BaseComponent {
                     }
 
                     if (this.props.width !== newWidth) {
-                        this.props.onChange({
+                        this.handleChange({
                             width: newWidth,
                             scroll
                         })
@@ -204,7 +235,7 @@ class MiniMap extends BaseComponent {
                     }
 
                     if (this.props.width !== newWidth) {
-                        this.props.onChange({
+                        this.handleChange({
                             width: newWidth,
                             scroll: newScroll,
                         })

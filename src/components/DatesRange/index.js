@@ -53,7 +53,7 @@ class DatesRange extends BaseComponent {
         }
         
         if (this.isSameDay(date_from, date_to) && this.isDateItemShown("to")) {
-            this.hideDateItem(date_to, "to")
+            this.hideDateItem("to")
         }
 
         // debugger
@@ -161,7 +161,7 @@ class DatesRange extends BaseComponent {
         }
     }
 
-    hideDateItem(params = false, type = "from") {
+    hideDateItem(type = "from") {
         if (this.nodes[type]) {
             this.element.removeChild(this.nodes[type].item)
 
@@ -174,7 +174,7 @@ class DatesRange extends BaseComponent {
             if (params !== false) {
                 this.updateDateItem(params, type)
             } else {
-                this.hideDateItem(params, type)
+                this.hideDateItem(type)
             }
         } else if (params !== false) {
             this.showDateItem(params, type)

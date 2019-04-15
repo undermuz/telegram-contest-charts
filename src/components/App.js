@@ -12,7 +12,6 @@ import ZoomIcon from "svg/zoom.svg"
 import {
     MODE_COLOR_DAY,
     MODE_COLOR_NIGHT,
-    MAP_MODE_COLOR_TO_TEXT,
     MAP_MODE_COLOR_TO_CHART_COLORS,
 } from 'constants/COLORS'
 
@@ -22,7 +21,7 @@ import {
 
 import style from "./style.css"
 import MiniMap from './MiniMap'
-import DatesRange from './DatesRange';
+import DatesRange from './DatesRange'
 
 class ChartItem extends BaseComponent {
     static defaultProps = {
@@ -77,6 +76,10 @@ class ChartItem extends BaseComponent {
             this.cart.setProps({
                 arcMode,
             })
+
+            this.miniMap.setProps({
+                grid: arcMode
+            })
         }
 
         if (prevProps.colors !== colors) {
@@ -96,6 +99,10 @@ class ChartItem extends BaseComponent {
             this.updateTitle()
         }
 
+        if (prevProps.zoom !== zoom) {
+            this.element.className = this.getElementClassNames().join(" ")
+        }
+
         if (prevProps.data !== data) {
             const {
                 data: {
@@ -106,6 +113,7 @@ class ChartItem extends BaseComponent {
                     width,
                     yScaled = false,
                     stacked = false,
+                    percentage = false,
                 }
             } = this.props
 
@@ -123,6 +131,7 @@ class ChartItem extends BaseComponent {
                 scroll,
                 width,
                 stacked,
+                percentage,
                 zoom,
             })
 
@@ -160,17 +169,17 @@ class ChartItem extends BaseComponent {
             }
         }
 
-        if (prevProps.zoom !== false && zoom === false) {
-            this.zoomOut.classList.toggle(style.charts__zoom_out__show)
-        } else if (prevProps.zoom === false && zoom !== false) {
-            this.zoomOut.classList.toggle(style.charts__zoom_out__show)
-        }
+        // if (prevProps.zoom !== false && zoom === false) {
+        //     this.zoomOut.classList.toggle(style.charts__zoom_out__show)
+        // } else if (prevProps.zoom === false && zoom !== false) {
+        //     this.zoomOut.classList.toggle(style.charts__zoom_out__show)
+        // }
 
         if (prevProps.layout !== layout) {
             this.cart.setProps({
                 layout: {
                     width: layout.width,
-                    height: (window.innerHeight / 100) * 40,
+                    height: 320//(window.innerHeight / 100) * 40,
                 },
             })
 
@@ -187,8 +196,6 @@ class ChartItem extends BaseComponent {
             style.mode_night,
             mode === MODE_COLOR_NIGHT,
         )
-
-        this.colorSwitcherItem.innerText = MAP_MODE_COLOR_TO_TEXT[mode]
     }
 
     updateTitle() {
@@ -202,6 +209,41 @@ class ChartItem extends BaseComponent {
             width,
             scroll,
         })
+    }
+
+    getElementClassNames() {
+        const {
+            zoomType = "none",
+            zoom = false,
+            data: {
+                yScaled = false,
+                stacked = false,
+                percentage = false,
+            },
+        } = this.props
+
+        const classNames = []
+
+        classNames.push(style.charts)
+        classNames.push(`${style.charts}__zoom_${zoomType}`)
+
+        if (zoom) {
+            classNames.push(`${style.charts}__zoomed`)
+        }
+
+        if (yScaled) {
+            classNames.push(`${style.charts}__y_scaled`)
+        }
+
+        if (stacked) {
+            classNames.push(`${style.charts}__stacked`)
+        }
+
+        if (percentage) {
+            classNames.push(`${style.charts}__percentage`)
+        }
+
+        return classNames
     }
 
     render() {
@@ -224,6 +266,7 @@ class ChartItem extends BaseComponent {
                 width,
                 yScaled = false,
                 stacked = false,
+                percentage = false,
             }
         } = this.props
 
@@ -250,9 +293,10 @@ class ChartItem extends BaseComponent {
             labels,
             yScaled,
             stacked,
+            percentage,
             layout: {
                 width: layout.width,
-                height: (window.innerHeight / 100) * 40,
+                height: 320//(window.innerHeight / 100) * 40,
             },
             colors,
             onZoom: this.props.onZoom
@@ -276,17 +320,6 @@ class ChartItem extends BaseComponent {
             visibled,
             onSwitch: this.props.onSwitchVisible,
             onSelectOne: this.props.onSelectOneVisible
-        })
-
-        this.colorSwitcherItem = cre("div", {
-            className: style.color__switcher__item,
-            text: MAP_MODE_COLOR_TO_TEXT[mode],
-            onClick: this.props.onToggleMode
-        })
-
-        this.colorSwitcher = cre("div", {
-            className: style.color__switcher,
-            children: this.colorSwitcherItem,
         })
 
         this.title = cre("h1", {
@@ -322,18 +355,24 @@ class ChartItem extends BaseComponent {
             ],
         })
 
+        this.datesRange.renderDom(this.chartsHeader)
+
         this.element = cre("div", {
-            className: style.charts,
+            className: this.getElementClassNames(),
             style: `font-size: ${fontSize}px`,
             children: this.chartsHeader,
         })
-        
-        this.datesRange.renderDom(this.chartsHeader)
-        this.cart.renderDom(this.element)
-        this.miniMap.renderDom(this.element)
-        this.lineSwitcher.renderDom(this.element)
 
-        this.element.appendChild(this.colorSwitcher)
+        this.cart.renderDom(this.element)
+
+        this.footer = cre("div", {
+            className: style.charts__footer
+        })
+
+        this.miniMap.renderDom(this.footer)
+        this.lineSwitcher.renderDom(this.footer)
+
+        this.element.appendChild(this.footer)
 
         return this.element
     }
@@ -354,9 +393,9 @@ class App extends BaseComponent {
     }
 
     static calcLimitOffset(length, width, scroll) {
-        let limit = length > 0 ? Math.round((length / 100) * width) : 0
+        let limit = length > 0 ? Math.ceil((length / 100) * width) : 0
 
-        let offset = length > 0 ? Math.round((length / 100) * scroll) - limit : 0
+        let offset = length > 0 ? Math.ceil((length / 100) * scroll) - limit : 0
 
         if (isNaN(limit)) {
             limit = 0
@@ -378,12 +417,12 @@ class App extends BaseComponent {
     }
 
     static defaultProps = {
+        mode: MODE_COLOR_DAY,
         animateScale: true,
         arcMode: false,
     }
 
     state = {
-        mode: MODE_COLOR_DAY,
         layout: {
             width: 0,
             height: 0
@@ -428,17 +467,34 @@ class App extends BaseComponent {
         })
 
         this.handleLoadDataCharts()
+
+        setInterval(() => {
+            const newWidth = window.innerWidth
+            const newHeight = this.element.clientHeight
+
+            if (
+                newWidth !== this.state.layout.width ||
+                newHeight !== this.state.layout.height
+            ) {
+                this.setState({
+                    layout: {
+                        width: window.innerWidth,
+                        height: this.element.clientHeight,
+                        tt: 1
+                    },
+                })
+            }
+        }, 100)
     }
 
     componentDidUpdate(prevProps, prevState) {
-        const { arcMode } = this.props
+        const { arcMode, mode } = this.props
 
         const {
             zoom,
             fontSize,
             loading,
             layout,
-            mode,
             data,
         } = this.state
 
@@ -448,7 +504,7 @@ class App extends BaseComponent {
             prevState.fontSize !== fontSize ||
             prevState.loading !== loading ||
             prevState.layout !== layout ||
-            prevState.mode !== mode ||
+            prevProps.mode !== mode ||
             prevState.data !== data
         ) {
             this.chart.setProps({
@@ -541,11 +597,15 @@ class App extends BaseComponent {
                 title: name,
                 scroll: 100,
                 width: 25,
-                dataset,
+                dataset: dataset.map(item => ({
+                    ...item,
+                    uid: `chart-${item.id}`
+                })),
                 labels,
                 visibled: dataset.map(line => line.id),
                 yScaled: dataChart.IsYScaled(), //!!dataJson.y_scaled,
                 stacked: dataChart.IsStacked(), //!!dataJson.stacked,
+                percentage: dataChart.IsPercentage(),
             }
         })
     }
@@ -576,8 +636,8 @@ class App extends BaseComponent {
         if (zoomType === "byDay") {
             const data = this.getCurrentData()
 
-            const offsetBefore = 5
-            const offsetAfter = 5
+            const offsetBefore = 3
+            const offsetAfter = 3
 
             let dataset = data.dataset.map(item => ({
                 ...item,
@@ -590,15 +650,50 @@ class App extends BaseComponent {
                     title: data.title,
                     visibled: data.visibled,
                     yScaled: data.yScaled,
+                    stacked: data.stacked,
+                    percentage: data.percentage,
                     index,
                     unixTimestamp,
                     offsetBefore,
                     offsetAfter,
-                    scroll: 60,
-                    width: 10,
+                    scroll: 50,
+                    width: 100 / (offsetBefore + offsetAfter),
                     labels,
                     dataset,
                 }
+            })
+        } else if (zoomType === "by3Days") {
+            const data = this.getCurrentData()
+
+            this.setState({
+                loading: true,
+            })
+
+            const dataUrl = getZoomedDataUrl(unixTimestamp)
+
+            const dataChart = await this.loadData(dataUrl)
+
+            const dataset = dataChart.getCharts()
+            const labels = dataChart.getXAsix()
+
+            // this.setDataChart(dataChart, `${name} - Zoomed`)
+
+            this.setState({
+                zoom: {
+                    title: data.title,
+                    yScaled: data.yScaled,
+                    stacked: data.stacked,
+                    percentage: data.percentage,
+                    scroll: 100,
+                    width: 100,
+                    labels,
+                    dataset: dataset.map(item => ({
+                        ...item,
+                        uid: `cahrt-${unixTimestamp}-${item.id}`
+                    })),
+                    visibled: dataset.map(line => line.id),
+                },
+                loading: false,
             })
         } else if (zoomType === "byHours") {
             const data = this.getCurrentData()
@@ -620,10 +715,15 @@ class App extends BaseComponent {
                 zoom: {
                     title: data.title,
                     yScaled: data.yScaled,
+                    stacked: data.stacked,
+                    percentage: data.percentage,
                     scroll: 50,
                     width: 10,
                     labels,
-                    dataset,
+                    dataset: dataset.map(item => ({
+                        ...item,
+                        uid: `cahrt-${unixTimestamp}-${item.id}`
+                    })),
                     visibled: dataset.map(line => line.id),
                 },
                 loading: false,
@@ -649,14 +749,6 @@ class App extends BaseComponent {
         }
     }
 
-    handleToggleColorMode() {
-        const { mode } = this.state
-
-        this.setState({
-            mode: mode === MODE_COLOR_DAY ? MODE_COLOR_NIGHT : MODE_COLOR_DAY,
-        })
-    }
-
     handleSwitchDataSet = lineId => {
         const { visibled = [] } = this.getCurrentData()
 
@@ -672,9 +764,17 @@ class App extends BaseComponent {
     }
 
     handleSelectOneVisibleDataSet = lineId => {
-        this.setCurrentData({
-            visibled: [lineId],
-        })
+        const { dataset = [], visibled = [] } = this.getCurrentData()
+
+        if (visibled.length === 1 && visibled[0] === lineId) {
+            this.setCurrentData({
+                visibled: dataset.map(item => item.id),
+            })
+        } else {
+            this.setCurrentData({
+                visibled: [lineId],
+            })
+        }
     }
 
     handleUpdateMiniMap({ width, scroll }) {
@@ -687,9 +787,9 @@ class App extends BaseComponent {
     /* RENDER */
 
     render() {
-        const { animateScale = true, zoomType = "none" } = this.props
+        const { animateScale = true, zoomType = "none", mode } = this.props
 
-        const { loading = false, zoom = false, layout, mode, data, fontSize = 16 } = this.state
+        const { loading = false, zoom = false, layout, data, fontSize = 16 } = this.state
 
         this.chart = new ChartItem({
             animateScale,
@@ -703,7 +803,6 @@ class App extends BaseComponent {
             mode,
             data,
 
-            onToggleMode: this.handleToggleColorMode.bind(this),
             onSwitchVisible: this.handleSwitchDataSet.bind(this),
             onSelectOneVisible: this.handleSelectOneVisibleDataSet.bind(this),
             onChangeOffsets: this.handleUpdateMiniMap.bind(this),

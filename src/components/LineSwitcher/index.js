@@ -121,11 +121,15 @@ class LineSwitcher extends BaseComponent {
 
         const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b)
 
-        const darknessRgb = hslToRgb(hsl[0], hsl[1] - 0.20, hsl[2])
+        const darknessRgb = hslToRgb(hsl[0], hsl[1] - 0.18, hsl[2])
 
-        rgb.r = darknessRgb[0]
-        rgb.g = darknessRgb[1]
-        rgb.b = darknessRgb[2]
+        rgb.r = Math.round(darknessRgb[0])
+        rgb.g = Math.round(darknessRgb[1])
+        rgb.b = Math.round(darknessRgb[2])
+
+        if (rgb.r > 255) rgb.r = 255
+        if (rgb.g > 255) rgb.g = 255
+        if (rgb.b > 255) rgb.b = 255
 
         if (opacity < 1) {
             color = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
@@ -140,13 +144,7 @@ class LineSwitcher extends BaseComponent {
         let rgb = hexToRgb(color)
 
         if (mode === MODE_COLOR_NIGHT) {
-            const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b)
-
-            const darknessRgb = hslToRgb(hsl[0], hsl[1] - 0.20, hsl[2])
-
-            rgb.r = darknessRgb[0]
-            rgb.g = darknessRgb[1]
-            rgb.b = darknessRgb[2]
+            return this.getDarknessColor(color, opacity)
         }
 
         if (opacity < 1) {
@@ -159,6 +157,8 @@ class LineSwitcher extends BaseComponent {
     }
 
     static createItems(dataset = [], visibled = [], mode = MODE_COLOR_DAY, onMouseDown) {
+        if (dataset.length < 2) return []
+
         return dataset.map(item => {
             const color = LineSwitcher.getColor(mode, item.color)
             // const darknessColor = LineSwitcher.getDarknessColor(item.color)
@@ -200,6 +200,8 @@ class LineSwitcher extends BaseComponent {
 
     componentDidMount() {
         this.attachEvents()
+
+        this.fadeIn()
     }
 
     componentDidUpdate(prevProps) {
@@ -235,27 +237,37 @@ class LineSwitcher extends BaseComponent {
                 const isOutside = closestEl !== switcher
     
                 if (!isOutside) {
-                    console.log("mouseup", item.id)
+                    // console.log("mouseup", item.id)
     
                     switcher.classList.remove(style.line__switchers__item__touching)
                     clearTimeout(timeoutId)
     
                     if (!long) {
-                        this.props.onSwitch(item.id)
-                    } else {
-                        console.log("donw switch - couse long tap", item.id)
+                        const { visibled = [] } = this.props
+
+                        const isThisOnlyVisible = visibled.length === 1 && visibled[0] === item.id
+
+                        if (!isThisOnlyVisible) {
+                            this.props.onSwitch(item.id)
+                        } else {
+                            switcher.classList.add(style.line__switchers__item_shake)
+
+                            setTimeout(() => {
+                                switcher.classList.remove(style.line__switchers__item_shake)
+                            }, 820)
+                        }
                     }
         
                     this.touching = false
                 } else {
-                    console.log("outside", item.id, e.target)
+                    // console.log("outside", item.id, e.target)
                 }
             }
         }
     }
 
     handleMouseDown( e, item ) {
-        console.log("mousedown", item.id)
+        // console.log("mousedown", item.id)
 
         e.preventDefault()
         e.stopPropagation()
@@ -270,7 +282,7 @@ class LineSwitcher extends BaseComponent {
             const timeoutId = setTimeout(() => {
                 this.touching.long = true
 
-                console.log("timeout", item.id)
+                // console.log("timeout", item.id)
 
                 this.props.onSelectOne(item.id)
             }, this.longTouchingTimeout)
@@ -302,8 +314,6 @@ class LineSwitcher extends BaseComponent {
 
                 const color = LineSwitcher.getColor(mode, item.color)
 
-                console.log({color})
-
                 switcher.style = `border-color: ${color};` + (visible ? `background-color: ${color}` : "")
                 switcher.classList.toggle(style.line__switchers__item_active, visible)
                 
@@ -311,9 +321,21 @@ class LineSwitcher extends BaseComponent {
                     label.style = !visible ? `color: ${item.color};` : ``
                 }
             } else {
-                throw new Error(`Can't find swticher for ${item.id}`)
+                // throw new Error(`Can't find swticher for ${item.id}`)
             }
         })
+    }
+
+    fadeIn() {
+        setTimeout(() => {
+            this.items.forEach(item => item.classList.add(style.line__switchers__item_fadein))            
+        }, 200)
+    }
+
+    fadeOut() {
+        setTimeout(() => {
+            this.items.forEach(item => item.classList.remove(style.line__switchers__item_fadein))
+        }, 200)
     }
 
     handleReRender() {
@@ -324,6 +346,8 @@ class LineSwitcher extends BaseComponent {
         this.items = LineSwitcher.createItems(dataset, visibled, mode, this.handleMouseDown.bind(this))
 
         this.items.forEach(item => this.element.appendChild(item))
+
+        this.fadeIn()
     }
 
     render() {

@@ -12,8 +12,6 @@
     left: 0px;
 
     transition: left 0.1s;
-    
-    /* min-width: 130px; */
     min-width: 8.12em;
 }
 
@@ -30,7 +28,7 @@
 
 .mode_night .canvas__show_info__wrapper
 {
-    background-color: #253241;
+    background-color: #1C2533;
     box-shadow: 0px 1px 8px rgba(0, 0, 0, 0.18);
     border: 1px solid rgba(227, 227, 227, 0);
     color: #fff;
@@ -74,6 +72,14 @@
     background-repeat: no-repeat;
     position: relative;
     background-size: contain;
+    opacity: 1;
+    z-index: 3;
+    transition: opacity 0.2s;
+}
+
+.mode_night .canvas__show_info__title__zoom__icon 
+{
+    opacity: 0.6;
 }
 
 .canvas__show_info__rows
@@ -87,11 +93,7 @@
     display: table-row;
     width: 100%;
     font-size: 14px;
-    /* margin-right: 40px; */
     margin-right: 2.5em;
-    align-items: center;
-    justify-content: center;
-    /* height: 1.5em; */
 }
 
 .canvas__show_info__row__item__percent,
@@ -122,7 +124,6 @@
     font-weight: bold;
     text-align: right;
     font-size: 14px;
-    /* font-size: 1.3em; */
 }
 
 .canvas__show_info__row__item.canvas__show_info__row__item_with_percent .canvas__show_info__row__item__percent
@@ -132,11 +133,8 @@
 
 .canvas__show_info__row__item__name
 {
-    min-width: 7em;
     padding-right: 0.8em;
     display: table-cell;
-    /* font-size: 1.2em; */
-    /* font-size: 14px; */
     font-weight: 400;
 }
 
@@ -145,9 +143,6 @@
     display: table-cell;
     font-weight: bolder;
     letter-spacing: 0.2px;
-    /* margin-bottom: 6px; */
-    /* font-size: 1em; */
-    /* margin-bottom: 0.32em; */
     white-space: nowrap;
 }
 
@@ -159,6 +154,13 @@
     width: 100%;
     height: 30px;
     background-color: #fff;
+    opacity: 1;
+    transition: opacity 0.2s;
+}
+
+.charts.charts__zoom_byDay.charts__zoomed.charts__stacked.charts__percentage .canvas_wrapper__x_labels_wrapper
+{
+    opacity: 0;
 }
 
 .mode_night .canvas_wrapper__x_labels_wrapper
@@ -185,4 +187,52 @@
 .mode_night .canvas_wrapper__x_labels_wrapper__item
 {
     color: #546778;
+}
+
+.canvas__show_select_arc
+{
+    position: absolute;
+    padding: 11px 15px 9px 15px;
+    box-shadow: 0px 1px 8px rgba(0, 0, 0, 0.09);
+    background-color: #fff;
+    border: 1px solid rgba(227, 227, 227, 0.65);
+    color: #000;
+    border-radius: 11px;
+    transition: 0.1s;
+    min-width: 178px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    align-content: center;
+    justify-content: space-between;
+    transition: 
+        left 0.2s,
+        top 0.2s,
+        background-color 0.2s,
+        box-shadow 0.2s,
+        border 0.2s,
+        color 0.2s;
+}
+
+.mode_night .canvas__show_select_arc
+{
+    background-color: #1C2533;
+    box-shadow: 0px 1px 8px rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(227, 227, 227, 0);
+    color: #fff;
+}
+
+.canvas__show_select_arc .label
+{
+    padding-right: 0.8em;
+    display: table-cell;
+    font-weight: 400;
+}
+
+.canvas__show_select_arc .value
+{
+    display: table-cell;
+    font-weight: bolder;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
 }

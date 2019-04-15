@@ -15,6 +15,50 @@ class CanvasLine {
     }
 }
 
+class CanvasRect {
+    constructor(x, y, params = {}) {
+        this.x = x
+        this.y = y
+        this.params = params
+    }
+}
+
+class CanvasPath {
+    constructor(params = {}) {
+        this.paths = []
+        this.isFill = false
+        this.isStroke = false
+        this.params = params
+    }
+
+    lineTo(x, y) {
+        this.paths.push([ "lineTo", x, y ])
+    }
+
+    moveTo(x, y) {
+        this.paths.push(["moveTo", x, y])
+    }
+
+    fill() {
+        this.isFill = true
+    }
+
+    stroke() {
+        this.isStroke = true
+    }
+}
+
+class CanvasArc {
+    constructor(x, y, r, startAngle, endAngle, params = {}) {
+        this.x = x
+        this.y = y
+        this.r = r
+        this.startAngle = startAngle
+        this.endAngle = endAngle
+        this.params = params
+    }
+}
+
 class Canvas {
     static getRetinaRatio() {
         const devicePixelRatio = window.devicePixelRatio || 1
@@ -117,7 +161,7 @@ class Canvas {
     }
 
     arc(x, y, r, startAngle, endAngle, params) {
-        let { color = "#0000", opacity = 1, mouseX = 0, mouseY = 0, mouseMove = false } = params
+        let { id, color = "#0000", opacity = 1, mouseX = 0, mouseY = 0, mouseMove = false } = params
 
         if (opacity < 1) {
             const rgb = hexToRgb(color)
@@ -138,7 +182,7 @@ class Canvas {
             const isIntersect = this.ctx.isPointInPath(mouseX * this.dpr, mouseY * this.dpr)
 
             if (isIntersect) {
-                mouseMove()
+                mouseMove(id)
             }
         }
 
@@ -203,12 +247,30 @@ class Canvas {
     draw(item) {
         if (item instanceof CanvasText) this.text(item.text, item.params)
         if (item instanceof CanvasLine) this.line(item.from, item.to, item.params)
+        if (item instanceof CanvasRect) this.rect(item.x, item.y, item.params)
+        if (item instanceof CanvasArc) this.arc(item.x, item.y, item.r, item.startAngle, item.endAngle, item.params)
+        if (item instanceof CanvasPath) {
+            const path = this.beginPath(item.params)
+
+            for (let index = 0; index < item.paths.length; index++) {
+                const [ type, x, y ] = item.paths[index]
+
+                if (type === "moveTo") path.moveTo(x, y)
+                if (type === "lineTo") path.lineTo(x, y)
+            }
+
+            if (item.isFill) path.fill()
+            if (item.isStroke) path.stroke()
+        }
     }
 }
 
 export {
     CanvasText,
     CanvasLine,
+    CanvasRect,
+    CanvasPath,
+    CanvasArc,
 }
 
 export default Canvas

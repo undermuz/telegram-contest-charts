@@ -1,12 +1,16 @@
-.app
-{
-    /* min-height: 100vh; */
-    transition: background-color 0.2s;
-}
-
-.app *
+body *
 {
     font-family: HelveticaNeueCyr,Tahoma,sans-serif,Arial;
+    appearance: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.app
+{
+    background-color: #fff;
+    transition: background-color 0.2s;
 }
 
 .app.mode_night
@@ -18,7 +22,7 @@
 {
     width: 100%;
     user-select: none;
-    padding: 10px 0px;
+    padding: 25px 0px 35px 0px;
     font-size: 16px;
     position: relative;
 }
@@ -29,39 +33,41 @@
     padding: 0px 18px;
 }
 
+.charts__footer
+{
+    width: 100%;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    align-content: flex-start;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    min-height: 75px;
+}
+
 .chart_title
 {
     padding: 10px 10px 20px 0px;
     font-size: 17px;
     font-weight: bold;
     transition: color 0.2s;
-    color: #222222;
+    color: #222;
     float: left;
+    opacity: 1;
+    transform: scale(1);    
+    transform-origin: center left;
+    transition: 0.2s;
+}
+
+.charts__zoomed .chart_title
+{
+    transform: scale(0);
+    opacity: 0;
 }
 
 .mode_night .chart_title
 {
     color: #FFFFFF;
-}
-
-.color__switcher
-{
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    flex-wrap: wrap;
-    font-size: 18px;
-    letter-spacing: 0.42px;
-    padding: 40px 18px 0px 18px;
-}
-
-.color__switcher__item
-{
-    color: #36A8F1;
-    cursor: pointer;
-    user-select: none;
 }
 
 .charts__title_wrapper
@@ -76,20 +82,21 @@
 
 .charts__zoom_out
 {
-    padding: 8px 0px 20px 0px;
+    padding: 0px 0px 20px 0px;
     position: absolute;
     left: 15px;
-    top: 10px;
-    background-color: #FFFFFF;
+    top: 32px;
     display: flex;
     opacity: 0;
-
-    transition: opacity 0.2s;
+    transform: scale(0);
+    transform-origin: center left;
+    transition: 0.2s;
 }
 
-.charts__zoom_out__show
+.charts__zoomed .charts__zoom_out
 {
     opacity: 1;
+    transform: scale(1);
 }
 
 .charts__zoom_out__icon
@@ -97,7 +104,7 @@
     width: 20px;
     height: 20px;
     margin-right: 7px;
-    background-position: top left;
+    background-position: 0px 0px;
     background-repeat: no-repeat;
     background-size: auto;
 }
@@ -108,6 +115,16 @@
     font-weight: 500;
     color: #108BE3;
     padding-top: 3px;
+    transition: 0.2s;
+}
+
+.mode_night .charts__zoom_out__text
+{
+    color: #48AAF0;
+}
+.mode_night .charts__zoom_out__icon
+{
+    background-position: -20px 0px;
 }
 
 .charts__dates

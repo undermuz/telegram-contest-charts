@@ -20,7 +20,6 @@
 .dates_range__item + .dates_range__item:before
 {
     content: "-";
-    /* float: left; */
     display: inline-block;
     margin-left: 5px;
     margin-right: 5px;

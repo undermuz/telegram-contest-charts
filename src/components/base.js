@@ -9,7 +9,7 @@ const cre = (tag, params = {}) => {
 
         if (name === "className") {
             if (value && value.constructor === Array) {
-                value.forEach(className => node.classList.add(className))
+                value.forEach(className => className && node.classList.add(className))
             } else {
                 node.classList.add(value)
             }
@@ -70,14 +70,14 @@ class Component {
             ...params,
         }
 
-        this.componentDidUpdate(this.props, prevState)
+        this.componentDidUpdate(this.props, prevState, "state")
 
         if (callback) {
             callback()
         }
     }
 
-    setProps = params => {
+    setProps(params) {
         const prevProps = { ...this.props }
 
         this.props = {
@@ -85,7 +85,7 @@ class Component {
             ...params,
         }
 
-        this.componentDidUpdate(prevProps, this.state)
+        this.componentDidUpdate(prevProps, this.state, "props")
     }
 
     componentDidUpdate() {

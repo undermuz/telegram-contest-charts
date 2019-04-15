@@ -1,7 +1,10 @@
 import "fonts/index.css"
 import "styles/reset.css"
 
+import 'helpers/polyfills'
+
 import App from "./components/App"
+import ColorSwitcher from './components/ColorSwithcer';
 
 const getZoomedDataUrl = (folder) => (unixTimestamp) => {
     const date = new Date(unixTimestamp)
@@ -61,7 +64,7 @@ if (window.location.pathname.indexOf("stage-2.html") === -1) {
     window.app3 = new App({
         name: "Views",
         dataUrl: "data/new/4/overview.json",
-        zoomType: "byHours",
+        zoomType: "by3Days",
         getZoomedDataUrl: getZoomedDataUrl("data/new/4")
     })
     window.app3.renderDom(document.getElementById("app3"))
@@ -74,3 +77,14 @@ if (window.location.pathname.indexOf("stage-2.html") === -1) {
     })
     window.app4.renderDom(document.getElementById("app4"))
 }
+
+window.colorSwitcher = new ColorSwitcher({
+    onToggle: (mode) => {
+        window.app0.setProps({ mode })
+        window.app1.setProps({ mode })
+        window.app2.setProps({ mode })
+        window.app3.setProps({ mode })
+        window.app4.setProps({ mode })
+    }
+})
+window.colorSwitcher.renderDom(document.getElementById("color_switcher"))
