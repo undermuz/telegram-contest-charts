@@ -9,7 +9,7 @@ export const MAP_MODE_COLOR_TO_TEXT = {
 export const MAP_MODE_COLOR_TO_CHART_COLORS = {
     [MODE_COLOR_DAY]: {
         background: "#fff",
-        text: "#182D3B",
+        text: "#585859",
         lines: "#182D3B",
         lastLine: "#182D3B",
         activeLine: "#D2D5D7",
@@ -19,7 +19,7 @@ export const MAP_MODE_COLOR_TO_CHART_COLORS = {
     },
     [MODE_COLOR_NIGHT]: {
         background: "#242F3E",
-        text: "#FFFFFF",
+        text: "#D5E3F2",
         lines: "#FFFFFF",
         lastLine: "#FFFFFF",
         activeLine: "#D2D5D7",

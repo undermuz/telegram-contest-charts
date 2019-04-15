@@ -643,6 +643,7 @@ class App extends BaseComponent {
                 ...item,
                 list: item.list.slice(index - offsetBefore, index + offsetAfter)
             }))
+            
             let labels = data.labels.slice(index - offsetBefore, index + offsetAfter)
 
             this.setState({

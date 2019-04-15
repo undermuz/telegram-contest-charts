@@ -941,7 +941,7 @@ class Charts extends BaseComponent {
                     // sum += v
                 })
 
-                let additionalOffset = 2
+                let additionalOffset = 0
 
                 dataset.forEach(item => {
                     let opacity = visibility[item.id]
@@ -950,7 +950,7 @@ class Charts extends BaseComponent {
 
                     let percent = v > 0 ? v * 100 / sum : 0
 
-                    if (percent < 2 && percent > 0) {
+                    if (percent < 2 && percent > 0 && opacity === 1) {
                         additionalOffset += 2
                     }
                 })
@@ -1083,26 +1083,38 @@ class Charts extends BaseComponent {
 
         const canvasObjList = []
 
-        for (let index = 0; index < length; index++) {
-            const { x } = this.nAsix(index * step - offsetPx, 0)
+        const sums = {}
+
+        for (let index = -1; index < length; index++) {
+            let localY = (index + 1) * step - offsetPx
+
+            let iter = index
+
+            if (index === -1) {
+                iter = 0
+            }
+
+            const { x } = this.nAsix(localY, 0)
 
             if (x >= 0 - (left * 2) && x <= left + width + (right * 2)) {
                 let sum = 0
 
                 dataset.forEach(item => {
-                    const v = item.list[index]
+                    const v = item.list[iter]
 
                     let opacity = visibility[item.id]
 
                     sum += v * opacity
                 })
 
+                sums[iter] = sum
+
                 let yOffset = 0
 
                 dataset.forEach(item => {
                     let opacity = visibility[item.id]
 
-                    const v = item.list[index] * opacity
+                    const v = item.list[iter] * opacity
 
                     const percent = v * 100 / sum
 
@@ -1122,52 +1134,54 @@ class Charts extends BaseComponent {
 
         for (let index = dataset.length - 1; index >= 0; index -= 1) {
             const item = dataset[index]
-            const itemPaths = paths.hasOwnProperty(item.id) ? paths[item.id] : []
 
-            let opacity = visibility[item.id]
-
-            if (allOpacity < 1) {
-                opacity = allOpacity
-            }
-
-            let { color } = item
-
-            if (mode === MODE_COLOR_NIGHT) {
-                color = Charts.getDarknessColor(color, opacity)
-            } else {
-                let rgb = hexToRgb(color)
-
-                if (opacity < 1) {
-                    color = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
-                } else {
-                    color = `rgba(${rgb.r},${rgb.g},${rgb.b},1)`
+            if (paths.hasOwnProperty(item.id)) {
+                const itemPaths = paths[item.id]
+    
+                let opacity = visibility[item.id]
+    
+                if (allOpacity < 1) {
+                    opacity = allOpacity
                 }
+    
+                let { color } = item
+                if (mode === MODE_COLOR_NIGHT) {
+                    color = Charts.getDarknessColor(color, opacity)
+                } else {
+                    let rgb = hexToRgb(color)
+    
+                    if (opacity < 1) {
+                        color = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
+                    } else {
+                        color = `rgba(${rgb.r},${rgb.g},${rgb.b},1)`
+                    }
+                }
+    
+                const path = new CanvasPath({
+                    color,
+                    opacity,
+                    lineWidth: params.lineWidth,
+                })
+    
+                const positionLast = this.nAsix(width, height)
+    
+                const positionStart = itemPaths[0]
+                const positionEnd = itemPaths[itemPaths.length - 1]
+    
+                path.moveTo(positionStart.x, positionLast.y)
+    
+                for (let _index = 0; _index < itemPaths.length; _index++) {
+                    const { x, y } = itemPaths[_index]
+    
+                    path.lineTo(x, y)
+                }
+    
+                path.lineTo(positionEnd.x, positionLast.y)
+    
+                path.fill()
+    
+                canvasObjList.push(path)
             }
-
-            const path = new CanvasPath({
-                color,
-                opacity,
-                lineWidth: params.lineWidth,
-            })
-
-            const positionLast = this.nAsix(width, height)
-
-            const positionStart = itemPaths[0]
-            const positionEnd = itemPaths[itemPaths.length - 1]
-
-            path.moveTo(positionStart.x, positionLast.y)
-
-            for (let index = 0; index < itemPaths.length; index++) {
-                const { x, y } = itemPaths[index]
-
-                path.lineTo(x, y)
-            }
-
-            path.lineTo(positionEnd.x, positionLast.y)
-
-            path.fill()
-
-            canvasObjList.push(path)
         }
 
         return canvasObjList

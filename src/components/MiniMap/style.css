@@ -54,6 +54,15 @@
     z-index: 1;
 }
 
+.charts__zoom_byDay.charts__zoomed .minimap__zone,
+.charts__zoom_byDay.charts__zoomed .minimap__left_zone,
+.charts__zoom_byDay.charts__zoomed .minimap__right_zone,
+.charts__zoom_byDay.charts__zoomed .minimap__left_size_zone,
+.charts__zoom_byDay.charts__zoomed .minimap__right_size_zone
+{
+    transition: left 0.2s, width 0.2s;
+}
+
 .minimap__zone
 {
     top: -1px;
@@ -140,7 +149,7 @@
 .minimap__right_zone
 {
     min-width: 7px;
-    background-color: rgba(241, 246, 249, 0.85);
+    background-color: rgba(226, 238, 249, 0.6);
     transition: background-color 0.2s;
 }
 
@@ -162,14 +171,14 @@
     top: 0px;
     bottom: 0px;
     width: 3px;
-    background-color: rgba(241, 246, 249, 0.85);
+    background-color: rgba(226, 238, 249, 0.6);
     transition: background-color 0.2s;
 }
 
 .mode_night .minimap__left_zone:before,
 .mode_night .minimap__right_zone:after
 {
-    background-color: rgba(31, 42, 56, 0.82);
+    background-color: rgba(48, 66, 89, 0.6);
 }
 
 .minimap__left_zone:before
@@ -185,7 +194,7 @@
 .mode_night .minimap__left_zone,
 .mode_night .minimap__right_zone
 {
-    background-color: rgba(31, 42, 56, 0.82);
+    background-color: rgba(48, 66, 89, 0.6);
 }
 
 .minimap__left_zone

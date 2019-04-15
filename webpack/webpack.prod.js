@@ -5,6 +5,9 @@ const path = require('path');
 
 module.exports = {
     mode: 'production',
+    optimization: {
+        minimize: false
+    },
     output: {
         filename: `${commonPaths.jsFolder}/[name].[hash].js`,
         path: commonPaths.outputPath,

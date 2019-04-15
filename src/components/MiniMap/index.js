@@ -24,7 +24,7 @@ class MiniMap extends BaseComponent {
             id,
             mode,
             mini: true,
-            lineWidth: 2,
+            lineWidth: 1,
             dataset,
             yScaled,
             allowXAsix: false,

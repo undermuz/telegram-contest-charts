@@ -31,6 +31,7 @@ module.exports = {
                         loader: 'file-loader',
                         options: {
                             outputPath: commonPaths.imagesFolder,
+                            name: '[name].[hash].[ext]'
                         },
                     },
                 ],
@@ -42,6 +43,8 @@ module.exports = {
                         loader: 'file-loader',
                         options: {
                             outputPath: commonPaths.fontsFolder,
+                            publicPath: "../fonts",
+                            name: '[name].[hash].[ext]'
                         },
                     },
                 ],
@@ -68,8 +71,8 @@ module.exports = {
             template: commonPaths.templatePath,
         }),
         new HtmlWebpackPlugin({
-            filename: "stage-2.html",
-            template: "src/html/stage-2.html",
+            filename: "stage1.html",
+            template: "src/html/stage-1.html",
         }),
         new ScriptExtHtmlWebpackPlugin({
             defaultAttribute: 'async',
